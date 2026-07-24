@@ -1,0 +1,140 @@
+import json
+import os
+import random
+from typing import Dict, Tuple
+
+from Sim.config.model_config import BaseModelConfig
+import Sim.config.utils as utils
+from Sim.entities.chips_network import chip_graph
+from Sim.logger import _setup_logger, init_logger
+from Sim.placer.BasePlacer import BasePlacer
+
+_setup_logger()
+logger = init_logger(__name__)
+
+Coord = Tuple[int, int]
+
+
+class Random_Placer(BasePlacer):
+    """Random placement baseline with RR-style outer-ring HBM placement."""
+
+    def __init__(self, chiplet_num: int, chiplet_alloc: Dict[str, int]):
+        super().__init__(chiplet_num, chiplet_alloc)
+        seed = int(os.environ.get("HYDRA_RANDOM_PLACER_SEED", "20260202"))
+        self._rng = random.Random(seed)
+
+    def _outer_ring_nodes(self, chip_graph: chip_graph) -> list[int]:
+        height, width = chip_graph.intp_height, chip_graph.intp_width
+        outer_ring_nodes: list[int] = []
+
+        for j in Random_Placer.middle_out_order(height):
+            outer_ring_nodes.append(chip_graph.graph.nodes[(0, j)]["id"])
+            outer_ring_nodes.append(chip_graph.graph.nodes[(width - 1, j)]["id"])
+
+        for i in Random_Placer.middle_out_order(width):
+            outer_ring_nodes.append(chip_graph.graph.nodes[(i, 0)]["id"])
+            outer_ring_nodes.append(chip_graph.graph.nodes[(i, height - 1)]["id"])
+
+        corners = [
+            (0, 0),
+            (width - 1, height - 1),
+            (width - 1, 0),
+            (0, height - 1),
+        ]
+        for coord in corners:
+            outer_ring_nodes.append(chip_graph.graph.nodes[coord]["id"])
+        return outer_ring_nodes
+
+    def init_mems(self, chip_graph: chip_graph, model_config: BaseModelConfig, mem_size: int = 16):
+        if chip_graph.num_nodes != self.chiplet_num:
+            raise ValueError("Input graph nodes do not match the chiplet number.")
+        for chiplet_type, count in self.chiplet_alloc.items():
+            if count < 0:
+                raise ValueError(f"Chiplet allocation for {chiplet_type} cannot be negative.")
+            if chiplet_type not in utils.avail_chiplets:
+                raise ValueError(f"Chiplet type {chiplet_type} not found in the graph.")
+
+        height, width = chip_graph.intp_height, chip_graph.intp_width
+        if height * width < self.chiplet_num:
+            raise ValueError("interposer needs to follow a rectangular shape.")
+
+        outer_ring_nodes = self._outer_ring_nodes(chip_graph)
+        if len(outer_ring_nodes) < self.chiplet_alloc["HBM3"]:
+            raise ValueError("Not enough outer ring nodes for HBM3 chiplets.")
+
+        assigned_nodes = outer_ring_nodes[: self.chiplet_alloc["HBM3"]]
+
+        for node_id in assigned_nodes:
+            coord = chip_graph.id_to_coord[node_id]
+            chip_graph.graph.nodes[coord]["chiplet_type"] = utils.chiplet_types_dict["HBM3"]
+            chip_graph.graph.nodes[coord]["dram(g)"] = mem_size
+            chip_graph.graph.nodes[coord]["sram(g)"] = 0
+            chip_graph.graph.nodes[coord]["bw_inuse"] = 0
+            chip_graph.graph.nodes[coord]["bandwidth"] = utils.IO_bw
+            chip_graph.graph.nodes[coord]["power"] = 10
+
+        remaining_nodes = [node for node in range(chip_graph.num_nodes) if node not in assigned_nodes]
+        remaining_alloc = {k: v for k, v in self.chiplet_alloc.items() if k != "HBM3"}
+        return assigned_nodes, remaining_nodes, remaining_alloc
+
+    def init_comps(
+        self,
+        assigned_nodes: list,
+        remaining_nodes: list,
+        remaining_alloc: dict,
+        chip_graph: chip_graph,
+        model_config: BaseModelConfig,
+        mem_size: int = 16,
+    ):
+        acc_instances: list[str] = []
+        for chiplet_type, count in remaining_alloc.items():
+            acc_instances.extend([chiplet_type] * count)
+
+        if len(acc_instances) > len(remaining_nodes):
+            raise ValueError("Not enough locations for compute chiplets.")
+
+        shuffled_nodes = remaining_nodes[:]
+        self._rng.shuffle(shuffled_nodes)
+
+        for node_id, chiplet_type in zip(shuffled_nodes, acc_instances):
+            coord = chip_graph.id_to_coord[node_id]
+            chip_graph.graph.nodes[coord]["chiplet_type"] = utils.chiplet_types_dict[chiplet_type]
+            chip_graph.graph.nodes[coord]["dram(g)"] = 0
+            chip_graph.graph.nodes[coord]["sram(g)"] = 0
+            chip_graph.graph.nodes[coord]["bw_inuse"] = 0
+            chip_graph.graph.nodes[coord]["bandwidth"] = utils.IO_bw
+            chip_graph.graph.nodes[coord]["power"] = 5
+
+        return [], []
+
+    def make_chiplet_placement(
+        self,
+        chip_graph: chip_graph,
+        model_config: BaseModelConfig,
+        mem_size: int = 16,
+        output_folder: str = "output",
+        logging: bool = True,
+    ):
+        assigned_nodes, remaining_nodes, remaining_alloc = self.init_mems(chip_graph, model_config, mem_size)
+        group_M_HBMs, group_A_HBMs = self.init_comps(
+            assigned_nodes, remaining_nodes, remaining_alloc, chip_graph, model_config, mem_size
+        )
+
+        if output_folder != "":
+            output_file = os.path.join(output_folder, "placement.json")
+            data = {
+                "chiplet_alloc": self.chiplet_alloc,
+                "nodes": [{"id": n, **attrs} for n, attrs in chip_graph.graph.nodes(data=True)],
+                "edges": [{"source": u, "target": v, **attrs} for u, v, attrs in chip_graph.graph.edges(data=True)],
+            }
+            if logging:
+                with open(output_file, "w") as f:
+                    json.dump(data, f, indent=4)
+                logger.info(f"Placement initialized for {chip_graph.num_nodes} chiplets")
+                logger.info(f"Placement information saved to {output_file}")
+
+        return group_M_HBMs, group_A_HBMs
+
+    @staticmethod
+    def get_name() -> str:
+        return "random"

@@ -1,0 +1,19 @@
+{
+    "model": "llama3-8b",
+    "workload": "chat",
+    "prefill_len": 56,
+    "decode_len": 62,
+    "lin_ops_per_token": 0,
+    "ele_ops_per_token": 0,
+    "mem_access_per_token": 0,
+    "prefill lin_ops(G)": 186.965295104,
+    "prefill ele_ops(G)": 0.0,
+    "prefill mem_access(GB)": 1.647312896,
+    "decode lin_ops(G)": 38.974521344,
+    "decode ele_ops(G)": 0.0,
+    "decode mem_access(GB)": 36.1627648,
+    "lin_ops_per_token(G)": 3.644190587870968,
+    "ele_ops_per_token(G)": 0.0,
+    "mem_access_per_token(GB)": 0.6098399628387097,
+    "param_scale": 0.4
+}

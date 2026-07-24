@@ -1,0 +1,6 @@
+# We derive the spec of HBM3 through ramulator2 & attacc
+
+16G:
+  capacity: 16GB
+  bandwidth: 600
+  latency: 250

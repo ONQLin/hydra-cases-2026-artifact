@@ -1,0 +1,11 @@
+1024:
+  config:
+    vuarray: '32_16_8'
+    VU_width: 32 
+    sram: 2M_384
+    sfu: 307.2
+    sram_tp: 384
+  core: 96
+  sfu: 96
+  links: 4
+  sram: 96

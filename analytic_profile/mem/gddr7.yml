@@ -1,0 +1,12 @@
+# GDDR7 Memory Profiles
+
+# 2 GDDR connected in parallel per edge chiplet
+
+# each GDDR7 can have 32Gbps per pin
+# 32 pin per device
+# 128 GBps per device
+
+16G:
+  capacity: 16GB
+  bandwidth: 256
+  latency: 300

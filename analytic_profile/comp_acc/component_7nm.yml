@@ -1,0 +1,137 @@
+B200:
+  tc:
+    area: 0.00156
+    MAC: 1024
+
+# Systolic array 64x32 2048MAC mm^2 7nm
+systolicarray:
+  '64_32':
+    area: 0.0992
+    MAC: 2048
+    rows: 64
+    cols: 32
+
+  '32_32':
+    area: 0.0496
+    MAC: 1024
+    rows: 32
+    cols: 32
+
+  '64_16':
+    area: 0.0496
+    MAC: 1024
+    rows: 64
+    cols: 16
+
+# Vector unit array: rows, cols, vu dim xx MAC mm^2 7nm
+vuarray:
+  '32_16_8':
+    area: 0.260
+    MAC: 4096
+    rows: 16
+    cols: 8
+
+unified:
+  '96_48':
+    area: 0.01984
+
+# Not correct area, but verified in xls
+sa_core:
+  1024:
+    area: 0.01
+  256:
+    area: 0.0025
+
+vua_core:
+  1024:
+    area: 0.01
+  256:
+    area: 0.0025
+
+# cacti SRAM 1MB mm^2 7nm 192 GB/s
+sram:
+  # For 64x32 systolic array
+  2M_192:
+    area: 0.2174
+    tp: 192
+  
+  # For 32x32 systolic array
+  1M_128:
+    area: 0.0915
+    tp: 128
+
+  # For 32x32 systolic array
+  1M_160:
+    area: 0.1026
+    tp: 160
+
+  2M_384:
+    area: 0.184
+    tp: 384
+
+
+# bump area as a function of d2d bandwidth (GBps) key:bandwidth val mm^2
+bump:
+  128:
+    area: 0.238
+  
+  # For prefill package
+  256:
+    area: 0.476
+  384:
+    area: 0.714
+  512:
+    area: 0.952
+  640:
+    area: 1.19
+
+  # For decode package
+  1024:
+    area: 1.904
+
+# PHY area as a function of d2d bandwidth (GBps) key:bandwidth val mm^2 for 7nm
+PHY:
+  128:
+    area: 0.294
+  256: # For prefill package
+    area: 0.588
+  384:
+    area: 0.882
+  512:
+    area: 1.176
+  640:
+    area: 1.568
+  1024: # For decode package
+    area: 2.2465
+
+# Not using DMA, rather adding 40% area overhead for everything else.
+dma:
+  128:
+    area: 0.0
+  256:
+    area: 0.0
+  384:
+    area: 0.0
+  512:
+    area: 0.0
+  640:
+    area: 0.0
+  1024:
+    area: 0.0
+
+# non-linear accelerator
+sfu:
+  # FP16 - 1.2GAcc/s, converted to 7nm
+  # 64 units
+  # 1.2*64 = 76.8 GAcc/s
+  76.8:
+    area: 0.02947
+  
+  1.95:
+    area: 0.0419
+  
+  307.2:
+    area: 0.117
+  
+  460.8:
+    area: 0.176

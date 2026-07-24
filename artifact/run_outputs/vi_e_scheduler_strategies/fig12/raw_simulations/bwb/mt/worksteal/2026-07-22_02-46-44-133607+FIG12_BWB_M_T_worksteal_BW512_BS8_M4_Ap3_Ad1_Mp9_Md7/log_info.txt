@@ -1,0 +1,31 @@
+INFO 07-22 02:46:44 sim_core.py:52] batch 0 scheduled at time 70000.
+INFO 07-22 02:46:44 sim_core.py:52] batch 1 scheduled at time 150000.
+INFO 07-22 02:46:44 sim_core.py:52] batch 2 scheduled at time 230000.
+INFO 07-22 02:46:44 sim_core.py:52] batch 3 scheduled at time 310000.
+INFO 07-22 02:46:44 sim_core.py:52] batch 4 scheduled at time 390000.
+INFO 07-22 02:46:44 sim_core.py:52] batch 5 scheduled at time 470000.
+INFO 07-22 02:46:44 sim_core.py:52] batch 6 scheduled at time 550000.
+INFO 07-22 02:46:44 sim_core.py:52] batch 7 scheduled at time 630000.
+INFO 07-22 02:46:44 sim_core.py:52] batch 8 scheduled at time 710000.
+INFO 07-22 02:46:44 sim_core.py:52] batch 9 scheduled at time 790000.
+INFO 07-22 02:46:44 sim_core.py:52] batch 10 scheduled at time 870000.
+INFO 07-22 02:46:44 sim_core.py:52] batch 11 scheduled at time 950000.
+INFO 07-22 02:46:44 sim_core.py:52] batch 12 scheduled at time 1030000.
+INFO 07-22 02:46:44 sim_core.py:52] batch 13 scheduled at time 1110000.
+INFO 07-22 02:46:44 sim_core.py:52] batch 14 scheduled at time 1190000.
+INFO 07-22 02:46:44 sim_core.py:52] batch 15 scheduled at time 1270000.
+INFO 07-22 02:46:44 sim_core.py:52] batch 16 scheduled at time 1350000.
+INFO 07-22 02:46:44 sim_core.py:52] batch 17 scheduled at time 1430000.
+INFO 07-22 02:46:44 sim_core.py:52] batch 18 scheduled at time 1510000.
+INFO 07-22 02:46:44 sim_core.py:52] batch 19 scheduled at time 1590000.
+INFO 07-22 02:50:38 sim_core.py:79] Simulation reached the maximum length of 100000000 time units.
+INFO 07-22 02:50:38 sim_core.py:80] In total 0 requests were processed.
+INFO 07-22 02:50:38 sim_core.py:81] Total simulation time: 234.06936693191528 seconds.
+INFO 07-22 02:50:38 simulator.py:131] output tokens per second: 1421.6
+INFO 07-22 02:50:38 simulator.py:132] finished tokens per second: 0.0
+INFO 07-22 02:50:38 simulator.py:133] Total output tokens: 142160
+INFO 07-22 02:50:38 simulator.py:134] Total preempted tokens: 0; Total preempted requests: 0
+INFO 07-22 02:50:38 simulator.py:135] Request counters - completed: 0, running: 160, pending: 4840
+INFO 07-22 02:50:38 simulator.py:142] Average time to first token: 48234714.0
+INFO 07-22 02:50:38 simulator.py:148] Average time per output token: 57361.349408450704
+INFO 07-22 02:50:38 simulator.py:158] Total area: 3433.1232000000005 mm^2

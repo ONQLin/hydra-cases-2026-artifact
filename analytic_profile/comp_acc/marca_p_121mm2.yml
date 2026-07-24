@@ -1,0 +1,56 @@
+# This show chiplets configuration of MARCA which is less than 121mm^2
+
+# We have different configurations for D2D bandwidth and _p prefilling friendly, more comp parallelized
+
+
+128:
+  config:
+    marca: 256
+    sram: 1M
+    sfu: 2.4
+    sram_tp: 96
+    out_ports: 256
+  core: 36 # 256 MACs
+  sfu: 36
+  links: 4
+  dma: 4
+  sram: 36
+
+256:
+  config:
+    marca: 256
+    sram: 1M
+    sfu: 2.4
+    sram_tp: 96
+    out_ports: 256
+  core: 32
+  sfu: 32
+  links: 4
+  dma: 4
+  sram: 32
+
+384:
+  config:
+    marca: 256
+    sram: 1M
+    sfu: 2.4
+    sram_tp: 96
+    out_ports: 256
+  core: 29
+  sfu: 29
+  links: 4
+  dma: 4
+  sram: 29
+
+512:
+  config:
+    marca: 256
+    sram: 1M
+    sfu: 2.4
+    sram_tp: 96
+    out_ports: 256
+  core: 25
+  sfu: 25
+  links: 4
+  dma: 4
+  sram: 25

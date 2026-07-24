@@ -1,0 +1,19 @@
+{
+    "model": "mamba2",
+    "workload": "bwb",
+    "prefill_len": 2445,
+    "decode_len": 2119,
+    "lin_ops_per_token": 0,
+    "ele_ops_per_token": 0,
+    "mem_access_per_token": 0,
+    "prefill lin_ops(G)": 12492.12137472,
+    "prefill ele_ops(G)": 52.8777216,
+    "prefill mem_access(GB)": 9.039367168,
+    "decode lin_ops(G)": 10826.505191424,
+    "decode ele_ops(G)": 45.82735872,
+    "decode mem_access(GB)": 5414.014215168,
+    "lin_ops_per_token(G)": 11.004542976,
+    "ele_ops_per_token(G)": 0.04658097230769231,
+    "mem_access_per_token(GB)": 2.5592513366380367,
+    "param_scale": 0.6
+}

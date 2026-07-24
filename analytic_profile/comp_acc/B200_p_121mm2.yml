@@ -1,0 +1,14 @@
+# For prefill package with 121mm^2 area constraint
+
+1024:
+  config:
+    B200: tc
+    MACs: 1024
+    out_ports: 128
+    sram: 1M_128
+    sfu: 1.95
+    sram_tp: 384
+  core: 80
+  sfu: 320
+  links: 4
+  sram: 80

@@ -1,0 +1,19 @@
+{
+    "model": "nemo",
+    "workload": "chat",
+    "prefill_len": 56,
+    "decode_len": 62,
+    "lin_ops_per_token": 0,
+    "ele_ops_per_token": 0,
+    "mem_access_per_token": 0,
+    "prefill lin_ops(G)": 404.333002752,
+    "prefill ele_ops(G)": 4.244373504,
+    "prefill mem_access(GB)": 3.7165824,
+    "decode lin_ops(G)": 18.038718464,
+    "decode ele_ops(G)": 0.19579699199999953,
+    "decode mem_access(GB)": 9.000843552,
+    "lin_ops_per_token(G)": 6.812447116387097,
+    "ele_ops_per_token(G)": 0.07161565316129032,
+    "mem_access_per_token(GB)": 0.20511977341935483,
+    "param_scale": 0.55
+}

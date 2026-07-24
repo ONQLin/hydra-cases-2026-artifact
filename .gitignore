@@ -1,0 +1,76 @@
+# Local environments and tool caches
+.env
+.env.*
+.venv/
+venv/
+env/
+myenv/
+*env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.mplcache/
+
+# Editor and OS noise
+.vscode/
+.DS_Store
+
+# Simulator outputs, logs, and tuning artifacts
+simulator_output/
+simulator_output_*/
+**/simulator_output_*/
+temp_outputs/
+revisions_simulator_output/
+output_sanity_checks/
+output_temp_runs/
+*.log
+*.out
+*.err
+scripts/archive_logs/
+scripts/archive_tuning/
+
+# Generated result tables and figures
+Results_[LMN]*/
+results_*.csv
+non_pareto_*.csv
+penalty_subset_eval*.csv
+tokens_*.png
+pareto_frontier_*
+pareto_*.png
+non_pareto_*
+pareto_results/
+/*.png
+/visualize/*.png
+/visualize/*.csv
+/figs/*.png
+/figs/**/*.png
+/figs/*.pdf
+/Results_Process/Pareto_Reports/
+/Results_Process/Raw_Results/
+/Results_Process/Summary_Reports/
+/Results_Process/figs/
+/repro_artifacts.md
+
+# Fast_Estimate generated caches/config sweeps
+Fast_Estimate/*_cache/
+Fast_Estimate/input_configs/
+Fast_Estimate/filtered_configs/
+Fast_Estimate/workloads_profiles/
+Fast_Estimate/predicted_configs/
+Fast_Estimate/*.pdf
+
+# Archived tuning/config-search history
+Star_Configs/archive_history/
+
+# Curated artifact inputs and figures are versioned reproduction materials.
+!artifact/
+!artifact/**
+artifact/**/__pycache__/
+artifact/**/*.py[cod]
+artifact/**/.mplcache/
+artifact/internal_checks/
+paper/*
+Star_Configs/**

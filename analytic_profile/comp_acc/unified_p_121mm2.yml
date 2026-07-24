@@ -1,0 +1,35 @@
+1024:
+  config:
+    unified: '96_48'
+    VU_width: 32 
+    VU_rows: 16
+    VU_cols: 8
+    sa_rows: 64
+    sa_cols: 32
+    sram: 2M_384
+    sfu: 460.8
+    sram_tp: 384
+  core: 96
+  sfu: 48
+  links: 4
+  sram: 144
+  sa_core: 96
+  vua_core: 48
+
+256:
+  config:
+    unified: '96_48'
+    VU_width: 32 
+    VU_rows: 16
+    VU_cols: 8
+    sa_rows: 64
+    sa_cols: 32
+    sram: 2M_384
+    sfu: 460.8
+    sram_tp: 384
+  core: 96
+  sfu: 48
+  links: 4
+  sram: 144
+  sa_core: 96
+  vua_core: 48

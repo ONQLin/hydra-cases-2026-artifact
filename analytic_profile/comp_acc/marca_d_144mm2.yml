@@ -1,0 +1,68 @@
+# This show chiplets configuration of TSCS which is less than 121mm^2
+
+# We have different configurations for D2D bandwidth and _p decoding friendly, more IO bw
+
+128:
+  config:
+    marca: 256
+    sram: 1M
+    sfu: 2.4
+    sram_tp: 96
+    out_ports: 256
+  core: 34 # 256 MACs
+  sfu: 34
+  links: 4
+  dma: 4
+  sram: 54
+
+256:
+  config:
+    marca: 256
+    sram: 1M
+    sfu: 2.4
+    sram_tp: 96
+    out_ports: 256
+  core: 31
+  sfu: 31
+  links: 4
+  dma: 4
+  sram: 49
+
+384:
+  config:
+    marca: 256
+    sram: 1M
+    sfu: 2.4
+    sram_tp: 96
+    out_ports: 256
+  core: 28
+  sfu: 28
+  links: 4
+  dma: 4
+  sram: 45
+
+512:
+  config:
+    marca: 256
+    sram: 1M
+    sfu: 2.4
+    sram_tp: 96
+    out_ports: 256
+  core: 25
+  sfu: 25
+  links: 4
+  dma: 4
+  sram: 40
+
+640:
+  config:
+    marca: 256
+    sram: 1M
+    sfu: 2.4
+    sram_tp: 96
+    out_ports: 256
+  core: 22
+  sfu: 22
+  links: 4
+  dma: 4
+  sram: 35

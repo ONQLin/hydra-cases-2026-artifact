@@ -1,0 +1,476 @@
+{
+    "seed": "42",
+    "log_level": "info",
+    "time_limit": "100",
+    "cluster_config": {
+        "num_replicas": "1",
+        "global_scheduler": "rr",
+        "local_scheduler": "static",
+        "batch_size": "64",
+        "vllm_cb_prefill_penalty_scale": "1.0",
+        "local_scheduler_inst": "<class 'Sim.scheduler.static.StaticReplicaScheduler'>"
+    },
+    "arch_config": {
+        "num_nodes": "24",
+        "intp_width": "6",
+        "intp_height": "4"
+    },
+    "chips_config": {
+        "avail_chiplets": [
+            "marca_p",
+            "marca_d",
+            "tscs_p",
+            "tscs_d",
+            "systolicarray_p",
+            "HBM3",
+            "GDDR7",
+            "HBM3e",
+            "B200_p",
+            "vuarray_d",
+            "unified_p"
+        ],
+        "D2D_NoI_bw": "256",
+        "HBM_IO_bw": "600",
+        "area_limit": "144",
+        "area_utilization": "1.0",
+        "tech_node": "28nm",
+        "comp_libs": [
+            "marca_d",
+            "marca_p",
+            "tscs_d",
+            "tscs_p"
+        ],
+        "mem_libs": [
+            "hbm3"
+        ],
+        "mem_sizes": [
+            16
+        ],
+        "chips_lib": "<Sim.config.utils.chiplets_lib object at 0x7f45ce263d50>",
+        "Fixed_chiplet_area": "True"
+    },
+    "placmt_config": {
+        "int_width": "6",
+        "int_height": "4",
+        "num_nodes": "24",
+        "chiplets_types": "{'marca_p': 0, 'marca_d': 1, 'tscs_p': 2, 'tscs_d': 3, 'systolicarray_p': 4, 'HBM3': 5, 'GDDR7': 6, 'HBM3e': 7, 'B200_p': 8, 'vuarray_d': 9, 'unified_p': 10}",
+        "chiplets_mapping": "[[0 0 0 0]\n [0 0 0 0]\n [0 0 0 0]\n [0 0 0 0]\n [0 0 0 0]\n [0 0 0 0]]",
+        "two_d_grid": "True",
+        "placement_trace": "None",
+        "placement_trace_file": "b200_package_placement_trace.csv",
+        "chiplet_alloc": "{'marca_p': 9, 'marca_d': 7, 'tscs_p': 3, 'tscs_d': 3, 'systolicarray_p': 0, 'HBM3': 2, 'GDDR7': 0, 'HBM3e': 0, 'B200_p': 0, 'vuarray_d': 0, 'unified_p': 0}",
+        "placer_label": "random",
+        "placer_inst": "<class 'Sim.placer.random_placer.Random_Placer'>",
+        "chip_graph": "Chip Graph with 24 nodes and dimensions 6x4"
+    },
+    "workload_config": {
+        "dataset": "chat",
+        "model": "nemotronh-4b",
+        "length_request": "1000",
+        "bytes_per_param": "1",
+        "request_generator_config": {
+            "seed": "42",
+            "num_requests": "10000",
+            "trace_length_generator_config": {
+                "seed": "42",
+                "max_tokens": "128000",
+                "trace_file": "dataset/chat/chat1m_stats_nemo.csv",
+                "prefill_scale_factor": "1",
+                "decode_scale_factor": "1",
+                "request_type": "e2e"
+            },
+            "trace_interval_generator_config": {
+                "seed": "42",
+                "interval": "0.01"
+            }
+        },
+        "model_config": {
+            "num_layers": "28",
+            "num_q_heads": "32",
+            "num_kv_heads": "8",
+            "embedding_dim": "3072",
+            "mlp_hidden_dim": "12288",
+            "max_position_embeddings": "8192",
+            "use_gated_mlp": "False",
+            "use_bias": "False",
+            "use_qkv_bias": "False",
+            "activation": "gelu",
+            "norm": "layer_norm",
+            "post_attn_norm": "False",
+            "vocab_size": "128256",
+            "is_neox_style": "True",
+            "rope_theta": "500000",
+            "rope_scaling": "None",
+            "partial_rotary_factor": "1.0",
+            "no_tensor_parallel": "False",
+            "block_config": "None",
+            "hybrid": "True",
+            "num_A_blocks": "4",
+            "num_M_blocks": "24",
+            "block_list": "None",
+            "hybrid_blocks": [
+                {
+                    "num_layers": "10",
+                    "embedding_dim": "6144",
+                    "ssm_state_dim": "128",
+                    "conv_kernel_size": "4",
+                    "mlp_hidden_dim": "5120",
+                    "num_q_heads": "8",
+                    "max_position_embeddings": "8192",
+                    "intermed_mem": "66672",
+                    "peak_intermed": "16496",
+                    "states": "786432",
+                    "output_mem": "2560",
+                    "cache_store": "False",
+                    "type_name": "mamba2-nemo4b-block-mamba",
+                    "layers": [
+                        [
+                            "RMS_Norm"
+                        ],
+                        [
+                            "FC"
+                        ],
+                        [
+                            "Conv1D",
+                            "Softplus"
+                        ],
+                        [
+                            "Silu"
+                        ],
+                        [
+                            "SSM"
+                        ],
+                        [
+                            "RMS_Norm"
+                        ],
+                        [
+                            "FC"
+                        ],
+                        [
+                            "FC"
+                        ],
+                        [
+                            "SquareRelu"
+                        ],
+                        [
+                            "FC"
+                        ]
+                    ],
+                    "layer_configs": [
+                        [
+                            {
+                                "bs": "1",
+                                "in_size": "3072",
+                                "out_size": "3072"
+                            }
+                        ],
+                        [
+                            {
+                                "bs": "1",
+                                "f_in": "3072",
+                                "f_out": "16496"
+                            }
+                        ],
+                        [
+                            {
+                                "bs": "1",
+                                "c_in": "8192",
+                                "c_out": "8192",
+                                "f_in": "8192",
+                                "f_out": "8192",
+                                "kernel_size": "4"
+                            },
+                            {
+                                "bs": "1",
+                                "in_size": "112",
+                                "out_size": "112"
+                            }
+                        ],
+                        [
+                            {
+                                "bs": "1",
+                                "in_size": "8192",
+                                "out_size": "8192"
+                            }
+                        ],
+                        [
+                            {
+                                "bs": "1",
+                                "state_size": "128",
+                                "ED": "6144"
+                            }
+                        ],
+                        [
+                            {
+                                "bs": "1",
+                                "in_size": "6144",
+                                "out_size": "6144"
+                            }
+                        ],
+                        [
+                            {
+                                "bs": "1",
+                                "f_in": "6144",
+                                "f_out": "3072"
+                            }
+                        ],
+                        [
+                            {
+                                "bs": "1",
+                                "f_in": "3072",
+                                "f_out": "12288"
+                            }
+                        ],
+                        [
+                            {
+                                "bs": "1",
+                                "in_size": "12288",
+                                "out_size": "12288"
+                            }
+                        ],
+                        [
+                            {
+                                "bs": "1",
+                                "f_in": "12288",
+                                "f_out": "3072"
+                            }
+                        ]
+                    ],
+                    "name": "mamba2-nemo4b-block-mamba"
+                },
+                {
+                    "num_layers": "7",
+                    "embedding_dim": "6144",
+                    "ssm_state_dim": "128",
+                    "conv_kernel_size": "4",
+                    "mlp_hidden_dim": "5120",
+                    "num_q_heads": "8",
+                    "max_position_embeddings": "8192",
+                    "intermed_mem": "30924",
+                    "peak_intermed": "16496",
+                    "states": "786432",
+                    "output_mem": "2560",
+                    "cache_store": "False",
+                    "type_name": "mamba2-nemo4b-block2-mamba",
+                    "layers": [
+                        [
+                            "RMS_Norm"
+                        ],
+                        [
+                            "FC"
+                        ],
+                        [
+                            "Conv1D",
+                            "Softplus"
+                        ],
+                        [
+                            "Silu"
+                        ],
+                        [
+                            "SSM"
+                        ],
+                        [
+                            "RMS_Norm"
+                        ],
+                        [
+                            "FC"
+                        ]
+                    ],
+                    "layer_configs": [
+                        [
+                            {
+                                "bs": "1",
+                                "in_size": "3072",
+                                "out_size": "3072"
+                            }
+                        ],
+                        [
+                            {
+                                "bs": "1",
+                                "f_in": "3072",
+                                "f_out": "16496"
+                            }
+                        ],
+                        [
+                            {
+                                "bs": "1",
+                                "c_in": "8192",
+                                "c_out": "8192",
+                                "f_in": "8192",
+                                "f_out": "8192",
+                                "kernel_size": "4"
+                            },
+                            {
+                                "bs": "1",
+                                "in_size": "112",
+                                "out_size": "112"
+                            }
+                        ],
+                        [
+                            {
+                                "bs": "1",
+                                "in_size": "8192",
+                                "out_size": "8192"
+                            }
+                        ],
+                        [
+                            {
+                                "bs": "1",
+                                "state_size": "128",
+                                "ED": "6144"
+                            }
+                        ],
+                        [
+                            {
+                                "bs": "1",
+                                "in_size": "6144",
+                                "out_size": "6144"
+                            }
+                        ],
+                        [
+                            {
+                                "bs": "1",
+                                "f_in": "6144",
+                                "f_out": "3072"
+                            }
+                        ]
+                    ],
+                    "name": "mamba2-nemo4b-block2-mamba"
+                },
+                {
+                    "num_layers": "6",
+                    "num_q_heads": "32",
+                    "num_kv_heads": "8",
+                    "embedding_dim": "3072",
+                    "mlp_hidden_dim": "14336",
+                    "max_position_embeddings": "8192",
+                    "rope_theta": "500000",
+                    "vocab_size": "128256",
+                    "intermed_mem": "36864",
+                    "peak_intermed": "12288",
+                    "states": "1536",
+                    "output_mem": "4096",
+                    "cache_store": "True",
+                    "parameter_count": "106960896",
+                    "type_name": "nemo4b-block-transformer",
+                    "layers": [
+                        [
+                            "RMS_Norm"
+                        ],
+                        [
+                            "MHA"
+                        ],
+                        [
+                            "RMS_Norm"
+                        ],
+                        [
+                            "FC"
+                        ],
+                        [
+                            "SquareRelu"
+                        ],
+                        [
+                            "FC"
+                        ]
+                    ],
+                    "layer_configs": [
+                        [
+                            {
+                                "bs": "1",
+                                "in_size": "3072",
+                                "out_size": "3072"
+                            }
+                        ],
+                        [
+                            {
+                                "bs": "1",
+                                "embedding_dim": "3072",
+                                "kv_heads": "8",
+                                "q_heads": "32"
+                            }
+                        ],
+                        [
+                            {
+                                "bs": "1",
+                                "in_size": "4096",
+                                "out_size": "4096"
+                            }
+                        ],
+                        [
+                            {
+                                "bs": "1",
+                                "f_in": "3072",
+                                "f_out": "12288"
+                            }
+                        ],
+                        [
+                            {
+                                "bs": "1",
+                                "in_size": "12288",
+                                "out_size": "12288"
+                            }
+                        ],
+                        [
+                            {
+                                "bs": "1",
+                                "f_in": "12288",
+                                "f_out": "3072"
+                            }
+                        ]
+                    ],
+                    "name": "nemo4b-block-transformer"
+                }
+            ],
+            "block_type_sequence": [
+                0,
+                0,
+                0,
+                1,
+                2,
+                0,
+                0,
+                0,
+                0,
+                1,
+                2,
+                0,
+                0,
+                0,
+                0,
+                1,
+                2,
+                0,
+                0,
+                0,
+                0,
+                1,
+                2,
+                0,
+                0,
+                0,
+                0,
+                0
+            ],
+            "param_scale": "0.55",
+            "name": "nemotronh-4b"
+        }
+    },
+    "mapping_config": {
+        "mapping_strategy": "static",
+        "task_parallelism": "pipeline",
+        "int_width": "5",
+        "int_height": "5",
+        "num_nodes": "25",
+        "chiplets_types": "{'marca_p': 0, 'marca_d': 1, 'tscs_p': 2, 'tscs_d': 3, 'systolicarray_p': 4, 'HBM3': 5, 'GDDR7': 6, 'HBM3e': 7, 'B200_p': 8, 'vuarray_d': 9, 'unified_p': 10}",
+        "chiplets_mapping": "[[0 0 0 0 0]\n [0 0 0 0 0]\n [0 0 0 0 0]\n [0 0 0 0 0]\n [0 0 0 0 0]]",
+        "two_d_grid": "True",
+        "link_reserve": "True"
+    },
+    "metrics_config": {
+        "write_metrics": "True",
+        "verbose": "False",
+        "output_dir": "artifact/run_outputs/vi_d_placement_strategies/fig10/raw_simulations/chat/bstar/random/2026-07-22_01-12-42-397195+FIG10_CHAT_B_star_random_RRCFG_BW256_BS64_M2_Ap3_Ad3_Mp9_Md7",
+        "cache_dir": "cache",
+        "label_name": "FIG10_CHAT_B_star_random_RRCFG_BW256_BS64_M2_Ap3_Ad3_Mp9_Md7"
+    }
+}

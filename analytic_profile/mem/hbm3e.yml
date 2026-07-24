@@ -1,0 +1,8 @@
+# We derive the spec of HBM3 through ramulator2 & attacc
+
+# 1TBps bandwidth 
+# HBM3E
+24G:
+  capacity: 24GB
+  bandwidth: 1024
+  latency: 250

@@ -1,0 +1,103 @@
+# HYDRA Artifact Installation
+
+All commands below are run from the repository root.
+
+## 1. Create the Python Environment
+
+Confirm that Python 3.11 is available:
+
+```bash
+python3.11 --version
+```
+
+Create and activate an isolated environment:
+
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m pip check
+```
+
+## 2. Verify the Installation
+
+Check the principal dependencies:
+
+```bash
+python -c "import matplotlib, networkx, numpy, pandas, scipy, simpy; print('HYDRA environment ready')"
+```
+
+Expected output:
+
+```text
+HYDRA environment ready
+```
+
+Check the simulator command-line interface:
+
+```bash
+python main.py --help
+```
+
+The output should begin with:
+
+```text
+Starting the simulation...
+usage: main.py [-h] [OPTIONS]
+```
+
+## 3. Run a Basic Artifact Test
+
+The following short test processes the included policy-ablation measurements
+and regenerates Fig. 9:
+
+```bash
+bash artifact/experiments/vi_d_e_policy_ablation/run.sh
+```
+
+Successful execution prints the generated paths and creates:
+
+```text
+artifact/run_outputs/vi_d_e_policy_ablation/fig9_policy_results.csv
+artifact/figures/vi_d_e_policy_ablation/fig9_policy_ablation.png
+```
+
+## 4. Run the Standard Evaluation
+
+For a short functional evaluation that reuses completed simulation outputs:
+
+```bash
+HYDRA_REUSE_COMPLETED=1 bash artifact/reproduce_all.sh
+```
+
+To rerun the selected placement and scheduling comparisons:
+
+```bash
+bash artifact/reproduce_all.sh
+```
+
+The driver prints progress and PASS/FAIL status for each experiment. Generated
+data and figures are placed under:
+
+```text
+artifact/run_outputs/
+artifact/figures/
+```
+
+Logs and the final summary are placed under:
+
+```text
+output_temp_runs/artifact_reproduction/<timestamp>/
+```
+
+Detailed commands for individual experiments and the optional exhaustive
+workflows are provided in `artifact/README.md`.
+
+## Troubleshooting
+
+- Ensure the virtual environment is active before running any command.
+- On a headless machine, set `MPLBACKEND=Agg` if the plotting backend reports a
+  display error.
+- Reduce parallelism with `HYDRA_NUM_WORKERS=4` if the machine has limited CPU
+  or memory resources.

@@ -1,0 +1,37 @@
+Frontend:
+  impl: SimpleO3
+  clock_ratio: 1
+  num_expected_insts: 500000
+  traces: 
+    - ./dummy.trace
+
+  Translation:
+    impl: RandomTranslation
+    max_addr: 2147483648
+              
+
+MemorySystem:
+  impl: GenericDRAM
+  clock_ratio: 1
+  DRAM:
+    impl: HBM3
+    org:
+      preset: HBM3_16Gb_4R
+      channel: 1
+    timing:
+      preset: HBM3_6.4Gbps
+
+  Controller:
+    impl: HBM3
+    Scheduler:
+      impl: FRFCFS
+    RefreshManager:
+      impl: AllBankHBM3
+    plugins:
+    - ControllerPlugin:
+        impl: HBM3TraceRecorder
+        path: ./log/base/cmd.log
+
+  AddrMapper:
+#    impl: HBM3-Base
+    impl: HBM3-Custom

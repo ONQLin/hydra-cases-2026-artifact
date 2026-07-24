@@ -1,0 +1,44 @@
+INFO 07-22 01:12:42 sim_core.py:52] batch 0 scheduled at time 630000.
+INFO 07-22 01:12:42 sim_core.py:52] batch 1 scheduled at time 1270000.
+INFO 07-22 01:12:43 sim_core.py:52] batch 2 scheduled at time 1910000.
+INFO 07-22 01:12:55 sim_core.py:52] batch 3 scheduled at time 2877200.
+INFO 07-22 01:13:35 sim_core.py:52] batch 4 scheduled at time 12208500.
+INFO 07-22 01:13:54 sim_core.py:52] batch 5 scheduled at time 21297100.
+INFO 07-22 01:14:12 sim_core.py:52] batch 6 scheduled at time 24202200.
+INFO 07-22 01:14:54 sim_core.py:52] batch 7 scheduled at time 28726700.
+INFO 07-22 01:15:31 sim_core.py:52] batch 8 scheduled at time 33217500.
+INFO 07-22 01:15:40 processing.py:720] Batch 1 completed at time 35329592.
+INFO 07-22 01:15:42 processing.py:720] Batch 0 completed at time 35831980.
+INFO 07-22 01:15:58 sim_core.py:52] batch 9 scheduled at time 36967200.
+INFO 07-22 01:16:38 sim_core.py:52] batch 10 scheduled at time 41385700.
+INFO 07-22 01:17:13 sim_core.py:52] batch 11 scheduled at time 46373200.
+INFO 07-22 01:17:45 sim_core.py:52] batch 12 scheduled at time 50390600.
+INFO 07-22 01:17:54 processing.py:720] Batch 3 completed at time 52690812.
+INFO 07-22 01:18:22 sim_core.py:52] batch 13 scheduled at time 54917900.
+INFO 07-22 01:18:47 processing.py:720] Batch 2 completed at time 61747720.
+INFO 07-22 01:18:58 sim_core.py:52] batch 14 scheduled at time 62404800.
+INFO 07-22 01:19:11 processing.py:720] Batch 6 completed at time 65517940.
+INFO 07-22 01:19:13 processing.py:720] Batch 7 completed at time 66210144.
+INFO 07-22 01:19:33 sim_core.py:52] batch 15 scheduled at time 67494700.
+INFO 07-22 01:20:10 sim_core.py:52] batch 16 scheduled at time 72970100.
+INFO 07-22 01:20:11 processing.py:720] Batch 5 completed at time 73254716.
+INFO 07-22 01:20:38 sim_core.py:52] batch 17 scheduled at time 76553800.
+INFO 07-22 01:20:42 processing.py:720] Batch 4 completed at time 77741060.
+INFO 07-22 01:21:14 sim_core.py:52] batch 18 scheduled at time 80458600.
+INFO 07-22 01:21:22 processing.py:720] Batch 8 completed at time 82521164.
+INFO 07-22 01:21:29 processing.py:720] Batch 9 completed at time 84487352.
+INFO 07-22 01:21:53 sim_core.py:52] batch 19 scheduled at time 87062800.
+INFO 07-22 01:22:26 sim_core.py:52] batch 20 scheduled at time 93919800.
+INFO 07-22 01:22:29 processing.py:720] Batch 12 completed at time 94884612.
+INFO 07-22 01:22:34 processing.py:720] Batch 13 completed at time 96789560.
+INFO 07-22 01:22:42 sim_core.py:79] Simulation reached the maximum length of 100000000 time units.
+INFO 07-22 01:22:42 sim_core.py:80] In total 1147 requests were processed.
+INFO 07-22 01:22:42 sim_core.py:81] Total simulation time: 600.0602078437805 seconds.
+INFO 07-22 01:22:42 simulator.py:131] output tokens per second: 2458.26
+INFO 07-22 01:22:42 simulator.py:132] finished tokens per second: 2260.21
+INFO 07-22 01:22:42 simulator.py:133] Total output tokens: 245826
+INFO 07-22 01:22:42 simulator.py:134] Total preempted tokens: 0; Total preempted requests: 0
+INFO 07-22 01:22:42 simulator.py:135] Request counters - completed: 1147, running: 197, pending: 3656
+INFO 07-22 01:22:42 simulator.py:142] Average time to first token: 3763497.263157895
+INFO 07-22 01:22:42 simulator.py:148] Average time per output token: 58399.924173173626
+INFO 07-22 01:22:42 simulator.py:158] Total area: 3447.8232 mm^2

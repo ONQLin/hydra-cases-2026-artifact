@@ -1,0 +1,56 @@
+# MARCA 8x8x4 256MAC mm^2 28nm
+marca:
+  256:
+    area: 1.4268
+    MAC: 256
+# Tensorcore 8x8x4 256MAC mm^2 28nm
+tscs:
+  256:
+    area: 1.3129
+    MAC: 256
+# cacti SRAM 1MB mm^2 28nm 96GB/s
+sram:
+  1M:
+    area: 1.5336
+    tp: 96
+# bump area as a function of d2d bandwidth (GBps) key:bandwidth val mm^2
+bump:
+  128:
+    area: 0.238
+  256:
+    area: 0.476
+  384:
+    area: 0.714
+  512:
+    area: 0.952
+  640:
+    area: 1.19
+# PHY area as a function of d2d bandwidth (GBps) key:bandwidth val mm^2
+PHY:
+  128:
+    area: 2.56
+  256:
+    area: 5.12
+  384:
+    area: 7.68
+  512:
+    area: 10.24
+  640:
+    area: 12.8
+
+dma:
+  128:
+    area: 0.0672
+  256:
+    area: 0.1344
+  384:
+    area: 0.2016
+  512:
+    area: 0.2688
+  640:
+    area: 0.336
+
+# non-linear accelerator
+sfu:
+  2.4:
+    area: 0.02

@@ -1,0 +1,19 @@
+{
+    "model": "mamba2",
+    "workload": "chat",
+    "prefill_len": 56,
+    "decode_len": 62,
+    "lin_ops_per_token": 0,
+    "ele_ops_per_token": 0,
+    "mem_access_per_token": 0,
+    "prefill lin_ops(G)": 286.118117376,
+    "prefill ele_ops(G)": 1.21110528,
+    "prefill mem_access(GB)": 2.700910592,
+    "decode lin_ops(G)": 316.773629952,
+    "decode ele_ops(G)": 1.34086656,
+    "decode mem_access(GB)": 158.409099264,
+    "lin_ops_per_token(G)": 9.724060440774194,
+    "ele_ops_per_token(G)": 0.041160836129032256,
+    "mem_access_per_token(GB)": 2.598548546064516,
+    "param_scale": 0.6
+}

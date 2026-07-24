@@ -1,0 +1,19 @@
+{
+    "model": "llama3-8b",
+    "workload": "arxiv4k",
+    "prefill_len": 3066,
+    "decode_len": 297,
+    "lin_ops_per_token": 0,
+    "ele_ops_per_token": 0,
+    "mem_access_per_token": 0,
+    "prefill lin_ops(G)": 41360.610557952,
+    "prefill ele_ops(G)": 0.0,
+    "prefill mem_access(GB)": 10.077339648,
+    "decode lin_ops(G)": 16114.08605184,
+    "decode ele_ops(G)": 0.0,
+    "decode mem_access(GB)": 3187.878985728,
+    "lin_ops_per_token(G)": 193.51749700266666,
+    "ele_ops_per_token(G)": 0.0,
+    "mem_access_per_token(GB)": 10.767529715070706,
+    "param_scale": 0.4
+}

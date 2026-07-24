@@ -1,0 +1,64 @@
+# HYDRA Artifact Requirements
+
+## Supported Environment
+
+The artifact was tested with:
+
+- Ubuntu 24.04 LTS on an x86-64 system;
+- Python 3.11.4;
+- Bash and standard GNU command-line utilities; and
+- the pinned Python packages in `requirements.txt`.
+
+Linux on x86-64 with Python 3.11 is the supported evaluation environment.
+Other operating systems and Python versions have not been tested.
+
+The artifact does not require a GPU, licensed software, root access, or
+specialized hardware. Internet access is needed only while installing Python
+packages. The standard artifact workflows do not invoke the prebuilt Ramulator
+wrapper under `analytic_profile/`, so no external Ramulator installation is
+required.
+
+## Hardware Resources
+
+For the standard artifact workflow, we recommend:
+
+- 8 or more CPU cores;
+- 16 GB or more system memory; and
+- 10 GB of free disk space.
+
+The workflow can run with fewer cores by setting `HYDRA_NUM_WORKERS`, at the
+cost of a longer runtime. For example:
+
+```bash
+HYDRA_NUM_WORKERS=4 bash artifact/reproduce_all.sh
+```
+
+The optional exhaustive DSE workflows are substantially more expensive. A
+server with at least 32 CPU cores, 64 GB of memory, and 100 GB of available
+storage is recommended. Their output size depends on the selected concurrency
+and completed design points, so available storage should be monitored.
+
+## Runtime
+
+On the tested server, the standard workflow that reuses completed placement
+and scheduling runs finishes in approximately 7 minutes:
+
+```bash
+HYDRA_REUSE_COMPLETED=1 bash artifact/reproduce_all.sh
+```
+
+The default standard workflow reruns the selected placement and scheduling
+comparisons and can take longer depending on CPU count. The exhaustive DSE
+workflows can require several days and are not part of the requested
+functional evaluation.
+
+## Software Dependencies
+
+Create a Python 3.11 virtual environment and install:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+No Docker image, virtual machine, compiler toolchain, or external simulator is
+required for the standard artifact workflow.

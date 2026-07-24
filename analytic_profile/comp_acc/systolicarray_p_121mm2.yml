@@ -1,0 +1,14 @@
+
+
+# For prefill package with 121mm^2 area constraint
+
+256:
+  config:
+    systolicarray: '64_32'
+    sram: 2M_192
+    sfu: 76.8
+    sram_tp: 192
+  core: 192
+  sfu: 192
+  links: 4
+  sram: 192

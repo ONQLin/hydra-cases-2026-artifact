@@ -1,0 +1,19 @@
+{
+    "model": "nemo",
+    "workload": "lw",
+    "prefill_len": 245,
+    "decode_len": 2890,
+    "lin_ops_per_token": 0,
+    "ele_ops_per_token": 0,
+    "mem_access_per_token": 0,
+    "prefill lin_ops(G)": 1778.06082048,
+    "prefill ele_ops(G)": 18.56913408,
+    "prefill mem_access(GB)": 4.125838464,
+    "decode lin_ops(G)": 840.83703808,
+    "decode ele_ops(G)": 9.12666624,
+    "decode mem_access(GB)": 419.55544944,
+    "lin_ops_per_token(G)": 0.9061930306435986,
+    "ele_ops_per_token(G)": 0.009583321910034602,
+    "mem_access_per_token(GB)": 0.14660252176608995,
+    "param_scale": 0.55
+}

@@ -1,0 +1,60 @@
+# HYDRA Artifact Status
+
+## Artifact Identification
+
+- Artifact: HYDRA design-space exploration framework
+- Paper: HYDRA: A DSE Framework for Hybrid Models
+- Artifact version: CASES 2026 evaluation snapshot
+- Public archive DOI: **TO BE ADDED BEFORE SUBMISSION**
+- License: **TO BE ADDED IN `LICENSE` BEFORE SUBMISSION**
+
+## Requested Badges
+
+### Artifact Available
+
+We apply for the **Artifact Available** badge. The final artifact snapshot will
+be deposited in a publicly accessible archival repository with a
+version-specific DOI. It contains the simulator source, analytical models,
+workload traces, experiment configurations, processing scripts, curated
+measurements, and generated figures used by the evaluation.
+
+### Artifact Evaluated - Functional
+
+We apply for the **Artifact Evaluated - Functional** badge. The artifact:
+
+- installs using Python 3.11 and the pinned packages in `requirements.txt`;
+- provides a top-level driver for all standard evaluation workflows;
+- provides a separate entry point and documentation for each experiment;
+- includes the data and configurations needed by the standard workflow;
+- reruns the selected placement and scheduling comparisons;
+- regenerates the corresponding result CSV files and PNG figures; and
+- reports per-experiment progress, output locations, and PASS/FAIL status.
+
+The standard workflow requires no GPU, licensed software, or specialized
+hardware.
+
+## Evaluation Scope
+
+The requested functional evaluation consists of:
+
+1. installing the Python environment as described in `INSTALL`;
+2. checking the simulator CLI with `python main.py --help`;
+3. running the basic Fig. 9 test described in `INSTALL`; and
+4. running the standard suite with:
+
+   ```bash
+   HYDRA_REUSE_COMPLETED=1 bash artifact/reproduce_all.sh
+   ```
+
+The experiment map and individual commands are documented in
+`artifact/README.md`.
+
+## Known Limitations
+
+- Optional exhaustive DSE sweeps require substantially more time and storage
+  than the standard evaluation.
+- Small numerical variations may occur across machines without changing the
+  reported comparisons or trends.
+- The corrected fast-estimation implementation can produce values that differ
+  slightly from the submitted manuscript. The affected values will be updated
+  in the camera-ready version.

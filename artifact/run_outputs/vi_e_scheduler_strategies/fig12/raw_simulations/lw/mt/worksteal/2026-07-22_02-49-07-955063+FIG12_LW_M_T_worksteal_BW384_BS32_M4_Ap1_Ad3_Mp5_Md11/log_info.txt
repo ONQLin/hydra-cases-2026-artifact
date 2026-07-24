@@ -1,0 +1,21 @@
+INFO 07-22 02:49:07 sim_core.py:52] batch 0 scheduled at time 310000.
+INFO 07-22 02:49:07 sim_core.py:52] batch 1 scheduled at time 630000.
+INFO 07-22 02:49:08 sim_core.py:52] batch 2 scheduled at time 950000.
+INFO 07-22 02:49:08 sim_core.py:52] batch 3 scheduled at time 1270000.
+INFO 07-22 02:49:08 sim_core.py:52] batch 4 scheduled at time 1590000.
+INFO 07-22 02:49:08 sim_core.py:52] batch 5 scheduled at time 1910000.
+INFO 07-22 02:49:08 sim_core.py:52] batch 6 scheduled at time 2230000.
+INFO 07-22 02:49:08 sim_core.py:52] batch 7 scheduled at time 2550000.
+INFO 07-22 02:49:09 sim_core.py:52] batch 8 scheduled at time 2870000.
+INFO 07-22 02:49:09 sim_core.py:52] batch 9 scheduled at time 3190000.
+INFO 07-22 02:55:54 sim_core.py:79] Simulation reached the maximum length of 100000000 time units.
+INFO 07-22 02:55:54 sim_core.py:80] In total 4 requests were processed.
+INFO 07-22 02:55:54 sim_core.py:81] Total simulation time: 406.32135701179504 seconds.
+INFO 07-22 02:55:54 simulator.py:131] output tokens per second: 5045.91
+INFO 07-22 02:55:54 simulator.py:132] finished tokens per second: 33.04
+INFO 07-22 02:55:54 simulator.py:133] Total output tokens: 504591
+INFO 07-22 02:55:54 simulator.py:134] Total preempted tokens: 0; Total preempted requests: 0
+INFO 07-22 02:55:54 simulator.py:135] Request counters - completed: 4, running: 316, pending: 4680
+INFO 07-22 02:55:54 simulator.py:142] Average time to first token: 9139194.4
+INFO 07-22 02:55:54 simulator.py:148] Average time per output token: 56123.061909171854
+INFO 07-22 02:55:54 simulator.py:158] Total area: 3438.0648 mm^2
