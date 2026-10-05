@@ -130,7 +130,8 @@ Each simulation directory contains:
 
 An output length of O maps to one prefill token plus O−1 decode iterations.
 Output length 1 is supported. No context truncation or prompt/decode scaling is
-performed. This baseline recomputes full prompts. Each full prompt must fit the target model's
+performed. Prefix caching is optional under the agent scheduler, using explicit
+identities; default BFCL replay recomputes full prompts. Each full prompt must fit the target model's
 supported context limit. Token counts from another model remain a workload
 assumption, not tokenizer validation for the simulated model.
 
@@ -162,12 +163,16 @@ a counterfactual replay. Missing identity remains labeled unverified.
 The time limit still guards incomplete runs; throughput then uses the elapsed
 burst window. Compare runs using the same termination policy.
 
-Agent replay requires the existing `static` scheduler with batch size 1, static
-mapping and pipeline execution. Sessions may overlap, but calls within a session
-are serial. KV/recurrent state is released between calls. CPU profile workers
-and workspace contend, while external service/NIC capacity is not modeled.
-There is no live agent execution, semantic evaluation, tool-code execution or
-general fork/join scheduling. AppWorld and MetaTool adapters remain future work.
+The legacy `static` scheduler requires batch size 1 for agent replay. Select
+`agent` for compatible multi-request batches with partial-batch flushing and
+priority baselines; see [runtime controls and prefix cache](../../docs/agent_workloads/scheduling/README.md)
+and [reproducible commands](../../tests/validation/agent_workloads/scheduling/README.md).
+Static mapping and pipeline execution remain required. Sessions may overlap,
+but calls within a session are serial. KV/recurrent state is released between
+calls unless supported prefix retention is explicitly enabled. CPU profile workers and
+workspace contend, while external service/NIC capacity is not modeled. There is no live agent execution,
+semantic evaluation, tool-code execution or general fork/join scheduling.
+AppWorld and MetaTool adapters remain future work.
 
 ## Tool profiles and custom inputs
 
@@ -221,10 +226,39 @@ Use `input-format normalized` and a matching tool profile; no BFCL fields are
 required. Add subsequent steps for follow-up generations. The single-step
 example includes completion of its tool even without another LLM call.
 
-Schema 2 stores full logical prompt lengths. This replay baseline recomputes
-all prompts. Legacy schema 1 (`cache_policy: recompute`) still loads and is
-exported as schema 2. Optional fields `slo_s`, `estimated_service_s`, `prefix_id`
-and `prefix_tokens` are preserved as metadata for future runtime policies;
-this baseline does not use them for prioritization or prefix reuse. Prefix IDs
-must identify identical tokenized prefixes; the pinned BFCL logs do not
-establish those identities.
+Schema 2 stores full logical prompt lengths; runtime configuration selects
+recompute or prefix retention. Legacy schema 1 (`cache_policy: recompute`) still
+loads and is exported as schema 2. Optional `AgentSession.slo_s` sets an end-to-end
+deadline relative to arrival. Optional step fields are `estimated_service_s`,
+`prefix_id`, and `prefix_tokens`. A prefix ID must identify an identical tokenized
+prefix including tokenizer/template/tenant semantics; token counts alone are
+insufficient. The pinned BFCL logs do not establish these identities.
+
+Native Tyro controls live under `--cluster-config.agent-scheduler.*`, including
+`priority`, `batching`, `max-batch-wait-s`, `service-estimator`,
+`estimated-output-tokens`, `prefill-token-s`, `decode-token-s`,
+`default-session-slo-s`, `max-active-batches`, `prefix-cache` and
+`prefix-capacity-bytes`. Set `--cluster-config.local-scheduler agent` and
+`--cluster-config.batch-size N`. The validation runner exposes equivalent short
+flags. `effective_agent_scheduler.json` records the selected controls, and
+`agent_metrics.json` adds queue times, admission scores/batches, session SLO
+attainment, cache counters and final placed-memory accounting.
+
+For host DRAM, choose `prefix-cache=lru_offload` and set
+`host-dram-capacity-bytes` (default 256 GiB), `host-link-bandwidth-gbps`,
+`host-dram-bandwidth-gbps`, and `host-transfer-latency-s` under the same Tyro
+prefix. Tool `cpu.memory_bytes` reserves a workspace partition within total
+host DRAM; the remaining bytes hold KV. Link rates are decimal GB/s and are
+assumptions unless calibrated. `stop-when-complete` also drains background KV
+copies; per-session latency still ends at its final tool completion.
+See [offload commands and sensitivity results](../../tests/validation/agent_workloads/offload/README.md).
+
+### Continuous batching
+
+Change `--cluster-config.local-scheduler agent` to `vllm_latest` to reschedule at
+real token boundaries. The same `--cluster-config.agent-scheduler.*` priority,
+timeout and prefix/offload options apply. Use `max-active-batches` 0 or 1; batch
+size caps all resident requests. CSV traces work without prefix retention.
+Prefill uses equal shapes; heterogeneous decode uses longest-context padding.
+The paper `vllm` stays unchanged; the former latest emulation is `vllm_legacy`.
+See [reproduction and scope](../../tests/validation/agent_workloads/continuous/README.md).

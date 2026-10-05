@@ -19,21 +19,56 @@ class AgentRequest(Request):
         self.completion = env.event()
         self.first_token_at = None
         self.step = step
+        self.prefix_key = step.prefix_id
+        self.cached_prefix_tokens = 0
+        self.prefix_cache = None
+        self.deadline_tick = float('inf')
+        self.admission = None
+
+    def prepare_prefix(self):
+        if self.prefix_cache:
+            self.prefix_cache.acquire(self)
+        self.fill_request()
+        self.apply_cached_prefix()
+
+    def rollback_prefix(self):
+        if self.prefix_cache:
+            self.prefix_cache.release(self)
+        self.cached_prefix_tokens = 0
+        self.fill_request()
+
+    def apply_cached_prefix(self):
+        if not self.cached_prefix_tokens:
+            return
+        for stage, inf in self._infs.items():
+            for block in inf.blocks:
+                previous = getattr(block, 'cached_prefix_tokens', 0)
+                block.states_store -= block.block_config.states * (self.cached_prefix_tokens - previous)
+                block.cached_prefix_tokens = self.cached_prefix_tokens
+                if stage == 'prefill':
+                    block.query_tokens = block.context_length - self.cached_prefix_tokens
+                    block.output_act = block.block_config.output_mem * block.query_tokens
+                    block.peak_intermediate_store = block.block_config.peak_intermed * block.query_tokens
+                    block.intermediate_store = block.block_config.intermed_mem * block.query_tokens
 
     def retry_request(self):
-        # Preserve the SimPy completion event when retrying the same call.
-        self.fill_request()
+        # SimPy events and cache ownership must retain identity across retries.
+        self.rollback_prefix()
         return self
 
     def step_processing(self, timestep=0):
         if self._process_idx == 0:
             self.first_token_at = timestep
         completed = super().step_processing(timestep)
+        if self.cached_prefix_tokens:
+            self.apply_cached_prefix()
         return completed
 
     def on_completion(self, timestep):
         if self.completion.triggered:
             return
+        if self.prefix_cache:
+            self.prefix_cache.complete(self, timestep)
         super().on_completion(timestep)
         if not self.completion.triggered:
             self.completion.succeed(timestep)
@@ -45,9 +80,10 @@ class AgentRequestGenerator(BaseRequestSource):
         return 'agent'
 
     def __init__(self, sim_done, tr_config, mod_config, env):
-        if (common.local_scheduler != 'static' or common.batch_size != 1
+        if ((common.local_scheduler == 'static' and common.batch_size != 1)
+                or common.local_scheduler not in ('static', 'agent', 'vllm_latest')
                 or common.task_parallelism != 'pipeline' or common.mapping_strategy != 'static'):
-            raise ValueError('Agent replay requires static scheduler with batch size 1, static mapping and pipeline execution.')
+            raise ValueError('Agent replay requires static scheduler with batch size 1, agent, or vllm_latest; static mapping and pipeline execution.')
         lengths = tr_config.trace_length_generator_config
         if lengths.request_type != 'e2e' or lengths.prefill_scale_factor != 1 or lengths.decode_scale_factor != 1:
             raise ValueError('Agent replay requires unscaled end-to-end calls.')
@@ -61,6 +97,9 @@ class AgentRequestGenerator(BaseRequestSource):
         self.records = []
         self.completed = {}
         self.requests = {}
+        self.prefix_cache = None
+        from Sim.config.agent_scheduler_config import AgentSchedulerConfig
+        self.scheduler_config = AgentSchedulerConfig()
         count = sum(len(session.steps) for session in self.workload.sessions)
         if count > common.max_requests_inj:
             raise ValueError('Agent trace exceeds max_requests_inj; select fewer sessions.')
@@ -72,6 +111,17 @@ class AgentRequestGenerator(BaseRequestSource):
                 mod_config.validate_request_lengths(step.input_tokens, step.input_tokens, step.output_tokens - 1)
         self.action = env.process(self.run())
 
+    def configure_runtime(self, memory, scheduler_config):
+        self.memory = memory
+        self.scheduler_config = scheduler_config
+        if scheduler_config.prefix_cache != 'none':
+            if common.local_scheduler not in ('agent', 'vllm_latest'):
+                raise ValueError('Prefix reuse requires the agent or vllm_latest scheduler.')
+            from Sim.execution.prefix_cache import BasePrefixCache
+            self.prefix_cache = BasePrefixCache.create_from_name(
+                scheduler_config.prefix_cache, memory, self.model, scheduler_config.prefix_capacity_bytes)
+            self.prefix_cache.configure_runtime(self.env, scheduler_config, self.tools)
+
     @staticmethod
     def ticks(seconds):
         return BaseToolModel.ticks(seconds)
@@ -79,6 +129,8 @@ class AgentRequestGenerator(BaseRequestSource):
     def run(self):
         processes = [self.env.process(self.run_session(session)) for session in self.workload.sessions]
         yield self.env.all_of(processes)
+        if self.prefix_cache:
+            yield self.env.all_of(self.prefix_cache.pending_events())
         common.inj_finish = True
         if self.options.stop_when_complete and not self.sim_done.triggered:
             self.sim_done.succeed()
@@ -90,6 +142,9 @@ class AgentRequestGenerator(BaseRequestSource):
             if request_counter.pending_requests + request_counter.running_requests >= common.max_requests_in_parallel:
                 raise ValueError('Agent replay exceeded max_requests_in_parallel.')
             request = AgentRequest(self.env, step, self.model)
+            request.prefix_cache = self.prefix_cache
+            request.deadline_tick = self.ticks(session.arrival_time_s + (
+                session.slo_s if session.slo_s is not None else self.scheduler_config.default_session_slo_s))
             request.fill_request()
             row = dict(session_id=session.session_id, step_id=step.step_id, request_id=request._id,
                        arrived_tick=self.env.now, completed_tick=None, tool_completed_tick=None,
@@ -111,7 +166,11 @@ class AgentRequestGenerator(BaseRequestSource):
         self.completed[session.session_id] = self.env.now
 
     def export_workload(self, output_dir):
+        from dataclasses import asdict
         path = Path(output_dir)
+        (path / 'effective_agent_scheduler.json').write_text(json.dumps(dict(
+            scheduler=common.local_scheduler, batch_size=common.batch_size,
+            options=asdict(self.scheduler_config)), indent=2)+'\n')
         self.workload.write(path / 'effective_agent_workload.json')
         (path / 'effective_tool_config.json').write_text(json.dumps(
             dict(model_check=self.model_check, profile_sha256=self.tools.source_sha256,
@@ -133,6 +192,8 @@ class AgentRequestGenerator(BaseRequestSource):
             request = self.requests[row['request_id']]
             row['scheduled_tick'] = request._scheduled_at if request._scheduled else None
             row['first_token_tick'] = request.first_token_at
+            row['admission'] = request.admission
+            row['cached_prefix_tokens'] = request.cached_prefix_tokens
             row['queue_s'] = ((request._scheduled_at-row['arrived_tick']) / common.time_granularity
                               if request._scheduled else None)
             row['ttft_including_queue_s'] = ((request.first_token_at-row['arrived_tick']) / common.time_granularity
@@ -143,7 +204,28 @@ class AgentRequestGenerator(BaseRequestSource):
                          latency_s=((self.completed[s.session_id]-self.ticks(s.arrival_time_s)) / common.time_granularity
                                     if s.session_id in self.completed else None))
                     for s in self.workload.sessions]
-        report = dict(cache_policy='recompute', tick_seconds=1/common.time_granularity,
+        for session, row in zip(self.workload.sessions, sessions):
+            slo = session.slo_s if session.slo_s is not None else self.scheduler_config.default_session_slo_s
+            row['slo_s'] = slo
+            deadline = self.ticks(session.arrival_time_s + slo)
+            row['deadline_tick'] = deadline
+            row['slo_met'] = (row['completed_tick'] <= deadline if row['completed_tick'] is not None
+                              else False if tick >= deadline else None)
+        from dataclasses import asdict
+        memory = []
+        if hasattr(self, 'memory'):
+            for chip in self.memory._mem_chiplets:
+                weights = sum(item.size for item in chip.content_params.get('weights', []))
+                retained = sum(item.size for key, items in chip.content_params.items()
+                               if isinstance(key, str) and key.startswith('prefix:') for item in items)
+                private = sum(len(items) for key, items in chip.content_params.items() if isinstance(key, int))
+                memory.append(dict(chiplet_id=chip.chiplet_id, weights_mib=weights, retained_prefix_mib=retained,
+                                   used_mib=chip.inuse_budget, reserved_mib=chip._current_allocated,
+                                   live_private_objects=private))
+        report = dict(cache_policy=self.prefix_cache.get_name() if self.prefix_cache else 'recompute', tick_seconds=1/common.time_granularity,
+                      memory=memory, outstanding_reservations=len(common.req_allocated_mems),
+                      scheduler_config=asdict(self.scheduler_config),
+                      prefix_cache=self.prefix_cache.snapshot() if self.prefix_cache else None,
                       cutoff_tick=tick, planned_sessions=len(sessions), completed_sessions=len(self.completed),
                       planned_calls=sum(len(s.steps) for s in self.workload.sessions),
                       released_calls=len(rows), completed_calls=sum(r['completed_tick'] is not None for r in rows),

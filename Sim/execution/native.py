@@ -32,7 +32,7 @@ class NativeExecutionBackend(BaseExecutionBackend):
                 if name in ("MHA", "SSM"):
                     name += "_p" if stage == "prefill" else "_d"
                 arguments = analytic_model.config_params(**vars(layer_config))
-                arguments['bs'] = block.context_length if stage == "prefill" else 1
+                arguments['bs'] = getattr(block, 'query_tokens', block.context_length) if stage == "prefill" else 1
                 arguments['batch_size'] = batch_size
                 arguments['L_seq'] = block.context_length
                 if stage == "prefill" and 'in_size' in arguments:

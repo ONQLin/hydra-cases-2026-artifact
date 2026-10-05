@@ -157,8 +157,8 @@ class ModernModelMixin:
             raise ValueError('Modern decoder profiles require one-byte weights, activations and KV; recurrent state is FP32.')
         if config.mapping_config.task_parallelism != 'pipeline':
             raise ValueError('Modern decoder profiles currently support pipeline parallelism only.')
-        if config.mapping_config.mapping_strategy != 'static' or config.cluster_config.local_scheduler != 'static':
-            raise ValueError('Modern decoders require static mapping and static scheduling.')
+        if config.mapping_config.mapping_strategy != 'static' or config.cluster_config.local_scheduler not in ('static', 'agent', 'vllm_latest'):
+            raise ValueError('Modern decoders require static mapping and static, agent, or vllm_latest scheduling.')
 
 
 @dataclass

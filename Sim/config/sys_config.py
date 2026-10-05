@@ -10,6 +10,7 @@ from Sim.entities.chips_network import chip_graph
 from Sim.config.model_config import BaseModelConfig
 from Sim.config.package_config import PackageConfig
 from Sim.config.agent_config import AgentTraceConfig
+from Sim.config.agent_scheduler_config import AgentSchedulerConfig
 from Sim.config.utils import dataclass_to_dict, chiplets_lib
 from Sim.scheduler import BaseReqScheduler
 from Sim.placer import BasePlacer
@@ -22,6 +23,7 @@ logger = init_logger(__name__)  # child logger inherits handlers
 
 @dataclass
 class ClusterConfig:
+    agent_scheduler: AgentSchedulerConfig = field(default_factory=AgentSchedulerConfig)
     num_replicas: int = field(
         default=1,
         metadata={"help": "Number of replicas."},

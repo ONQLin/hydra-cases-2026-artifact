@@ -33,7 +33,9 @@ class TraceRequestGenerator(BaseRequestSource):
         self.mod_config = mod_config
         # Generate the request that includes decode and prefill lengths
         self.request_length_generator = TraceRequestLengthGenerator(tr_config.trace_length_generator_config, tr_config.num_requests)
-        self.mod_config.validate_batch_lengths(self.request_length_generator.trace_df, common.batch_size)
+        # Continuous admission groups equal prefills and profiles padded decode.
+        if common.local_scheduler != 'vllm_latest':
+            self.mod_config.validate_batch_lengths(self.request_length_generator.trace_df, common.batch_size)
         self.request_interval_generator = StaticRequestIntervalGenerator(tr_config.trace_interval_generator_config)
         self.env = env
         self.generate_job = True

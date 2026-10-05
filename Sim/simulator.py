@@ -79,6 +79,17 @@ class Simulator:
 
         logger.info("Feed Request ...")
         request_config = self._config.workload_config.request_generator_config
+        if self._config.cluster_config.local_scheduler == 'agent':
+            if request_config.generator != 'agent' or self._config.cluster_config.num_replicas != 1:
+                raise ValueError('Agent scheduling requires agent requests and one model replica.')
+        elif self._config.cluster_config.local_scheduler == 'vllm_latest':
+            if self._config.cluster_config.num_replicas != 1:
+                raise ValueError('Continuous batching requires one model replica.')
+            if (self._config.cluster_config.agent_scheduler.prefix_cache != 'none'
+                    and request_config.generator != 'agent'):
+                raise ValueError('Prefix retention requires explicit identities in an agent trace.')
+        elif self._config.cluster_config.agent_scheduler.prefix_cache != 'none':
+            raise ValueError('Prefix retention requires the agent or vllm_latest scheduler and agent request source.')
         source_class = BaseRequestSource.create_from_name(request_config.generator)
         self._request_generator = source_class(sim_done=sim_done, tr_config=request_config,
                                               mod_config=self._config.workload_config.model_config, env=env)
@@ -138,6 +149,7 @@ class Simulator:
         # common.configure_chip_features(common.analytic_models_config, Col_PE=24, Row_PE=24, Num_Array=8, C_sram=16, DMAs=8, Sram_bw=32)
         self.mapper = self.package_system.mapper if self.package_system else static_mapper()
         common.job_mapping, _ = self.mapper.generate_mapping(self._config.workload_config.model_config, self.comp_sys, self.mem_sys)
+        self._request_generator.configure_runtime(self.mem_sys, self._config.cluster_config.agent_scheduler)
         self._request_generator.export_workload(common.output_folder)
         setup = {
             "weight_mapping": self.mem_sys.blocks_alloc,
@@ -159,7 +171,8 @@ class Simulator:
         self.metrics_recorder = ServingMetricsRecorder(common.output_folder)
         self._sim_manager = SimulationManager(env, sim_done, self.resources_graph, self.mem_sys, self.comp_sys, 
                                               self._config.workload_config.model_config, self._config.cluster_config.local_scheduler_inst,
-                                              self.execution_backend, self.metrics_recorder)
+                                              self.execution_backend, self.metrics_recorder,
+                                              self._config.cluster_config.agent_scheduler)
         
 
         try:
@@ -177,6 +190,7 @@ class Simulator:
                 self.execution_backend.close()
 
         total_tokens = tokens_monitor.output_tokens
+        self._sim_manager.scheduler.write_report(common.output_folder)
         total_finish_tokens = tokens_monitor.finished_tokens
         elapsed_seconds = max(env.now / common.time_granularity, 1e-9)
         token_p_second = total_tokens / elapsed_seconds
@@ -246,7 +260,7 @@ class Simulator:
             "pending_requests": request_counter.pending_requests,
             "preempted_requests": total_preempted_requests,
             "area_mm2": utils.total_area,
-            "measurement_window": ("from t=0 through workload completion or cutoff; no warmup exclusion"
+            "measurement_window": ("from t=0 through workload completion and cache-transfer drain, or cutoff; no warmup exclusion"
                                    if request_config.generator == 'agent' and request_config.agent_config.stop_when_complete
                                    else "from t=0 through fixed simulation cutoff; no warmup exclusion"),
         }

@@ -8,10 +8,10 @@ from Sim.entities.batch_of_req import BatchOfRequests
 from Sim.entities.infer import infer
 from Sim.entities.request import Request
 from Sim.metrics.monitor import congestion_monitor
-from Sim.scheduler.vllm_latest import VllmLatestReplicaScheduler
+from Sim.scheduler.vllm_legacy import VllmLegacyReplicaScheduler
 
 
-class VllmReplicaScheduler(VllmLatestReplicaScheduler):
+class VllmReplicaScheduler(VllmLegacyReplicaScheduler):
     """Dynamic batching behavior used before continuous-batching emulation."""
 
     def __init__(

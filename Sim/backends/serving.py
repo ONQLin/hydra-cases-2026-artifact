@@ -15,8 +15,8 @@ class StaticServingMixin:
             raise ValueError(f"{self.get_name()} currently validates static task mapping only.")
         if self.config.mapping_config.task_parallelism != "pipeline":
             raise ValueError(f"{self.get_name()} currently supports pipeline parallelism only.")
-        if self.config.cluster_config.local_scheduler != "static":
-            raise ValueError(f"{self.get_name()} currently validates static batching only.")
+        if self.config.cluster_config.local_scheduler not in ("static", "agent", "vllm_latest"):
+            raise ValueError(f"{self.get_name()} requires static, agent, or vllm_latest scheduling.")
         if self.config.workload_config.bytes_per_param != 1:
             raise ValueError(f"{self.get_name()} phase exports currently use the native one-byte profiles.")
         if not self.config.placmt_config.two_d_grid:

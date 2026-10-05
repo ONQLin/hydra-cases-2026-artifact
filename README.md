@@ -78,6 +78,11 @@ multi-turn result logs as dependent LLM calls and profiled host/external tools. 
 [integration guide](integrations/workloads/README.md) provides custom Tyro inputs,
 a [real Qwen3-8B replay](tests/validation/agent_workloads/real_bfcl/README.md),
 and small validation commands for all three backends.
+The [agent runtime baselines](docs/agent_workloads/scheduling/README.md) add
+FCFS/SJF/HRRN/EDF/least-slack admission, compatible partial batches and bounded
+HBM/host-DRAM prefix KV reuse, with reproducible runtime DSE studies.
+The updated `vllm_latest` adds [continuous batching](docs/agent_workloads/scheduling/runtime_evolution/README.md)
+at real token boundaries; the paper `vllm` variant is preserved.
 
 ## Environment Setup
 

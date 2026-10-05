@@ -24,3 +24,6 @@ class BaseRequestSource(ABC):
 
     def finalize(self, output_dir, tick):
         """Optionally write workload-specific completion and cutoff metrics."""
+
+    def configure_runtime(self, memory, scheduler_config):
+        """Optionally attach placed memory and runtime policy configuration."""

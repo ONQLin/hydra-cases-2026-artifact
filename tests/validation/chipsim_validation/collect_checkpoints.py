@@ -54,6 +54,8 @@ class CheckpointRun:
             raise ValueError('Backends disagree on effective_agent_workload.json.')
         if self.read('effective_tool_config.json') != other.read('effective_tool_config.json'):
             raise ValueError('Backends disagree on effective_tool_config.json.')
+        if self.read('effective_agent_scheduler.json') != other.read('effective_agent_scheduler.json'):
+            raise ValueError('Backends disagree on effective_agent_scheduler.json.')
         # Placement and token lengths alone cannot detect different arrival
         # intervals, batch policies, seeds, or accelerator configurations.
         a, b = self.read('config.json'), other.read('config.json')

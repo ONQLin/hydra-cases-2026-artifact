@@ -26,7 +26,7 @@ Use a fresh output directory, then reuse it across the suite commands. Omit
 `--include-datasets` for synthetic inputs only. Dataset subsets preserve complete
 requests and write selection/hash metadata beside their generated CSVs. The
 modern-model runner also generates its default short trace when `--trace` is
-omitted; package studies generate their own workloads.
+omitted; package and runtime studies generate their own workloads.
 
 Detailed metrics, manifests, per-call/iteration logs and profile dumps belong in
 ignored `output_sanity_checks/` directories. Tests check invariants and calculated

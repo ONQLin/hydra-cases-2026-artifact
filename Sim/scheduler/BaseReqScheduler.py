@@ -5,6 +5,22 @@ from typing import Any
 
 # Define the BaseReqScheduler abstract base class for request scheduling 
 class BaseReqScheduler(ABC):
+    dispatch_ready_on_admission = False
+
+    def configure_runtime(self, env, config):
+        """Optional runtime policy context; existing schedulers keep defaults."""
+
+    def create_processing(self, execution_backend):
+        """Create an executor with the lifecycle required by this scheduler."""
+        from Sim.processing import processing
+        return processing(execution_backend)
+
+    def write_report(self, output_dir):
+        """Optional scheduler-specific execution evidence."""
+
+    def wait_for_work(self, env):
+        import Sim.common as common
+        return env.timeout(common.simulation_clk)
 
     @classmethod
     def create_from_name(cls, name: str) -> Any:

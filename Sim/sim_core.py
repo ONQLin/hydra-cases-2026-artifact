@@ -18,7 +18,7 @@ class SimulationManager:
     '''!
     Define the SimulationManager class to handle the simulation events.
     '''
-    def __init__(self, env:simpy.Environment, sim_done:simpy.Event, chip_graph:chip_graph, mem_sys:mem_sys, comp_sys:comp_sys, model_config: BaseModelConfig, scheduler: BaseReqScheduler, execution_backend=None, metrics_recorder=None):
+    def __init__(self, env:simpy.Environment, sim_done:simpy.Event, chip_graph:chip_graph, mem_sys:mem_sys, comp_sys:comp_sys, model_config: BaseModelConfig, scheduler: BaseReqScheduler, execution_backend=None, metrics_recorder=None, scheduler_config=None):
 
         self.env: simpy.Environment = env                          # SimPy environment
         self.sim_done = sim_done                # Event to signal the end of simulation
@@ -27,8 +27,9 @@ class SimulationManager:
         self.mem_sys = mem_sys                  # Memory system instance
         self.comp_sys = comp_sys                # Compute system instance  
         self.scheduler:BaseReqScheduler = scheduler(chip_graph, mem_sys, comp_sys, bs=common.batch_size)  # Request scheduler instance
+        self.scheduler.configure_runtime(env, scheduler_config)
         self.scheduler.set_max_concurrent_requests(model_config, mem_sys)
-        self.PEs: list[processing] = [processing(execution_backend) for _ in range(common.num_wk_threads)]
+        self.PEs: list[processing] = [self.scheduler.create_processing(execution_backend) for _ in range(common.num_wk_threads)]
         self.action = env.process(self.run())   # starts the run() method as a SimPy process
 
     def run(self):
@@ -44,13 +45,15 @@ class SimulationManager:
             """
                 Schedule the request in the queue, allocate memory
             """
-            if len(common.RequestQueue.ready) != 0:
+            if len(common.RequestQueue.ready) != 0 and any(pe.IDLE for pe in self.PEs):
                 self.scheduler.start_request(self.env, self.PEs)
             sched = self.scheduler.schedule_request(self.mem_sys, self.comp_sys, batchsize=common.batch_size)
 
             if sched == 1:
                 cur_batch_id = common.RequestQueue.ready[-1]._id
                 logger.info(f"batch {cur_batch_id} scheduled at time {self.env.now}.")
+                if self.scheduler.dispatch_ready_on_admission and any(pe.IDLE for pe in self.PEs):
+                    self.scheduler.start_request(self.env, self.PEs)
 
             """
                 Start the request processing
@@ -83,4 +86,4 @@ class SimulationManager:
                 logger.info(f"In total {request_counter.completed_requests} requests were processed.")
                 logger.info(f"Total simulation time: {end_time - stat_time} seconds.")
                 break
-            yield self.env.timeout(common.simulation_clk)
+            yield self.scheduler.wait_for_work(self.env)

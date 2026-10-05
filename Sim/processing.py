@@ -85,8 +85,8 @@ class processing:
         self._cb_real_total_tokens = 0
 
     def _init_continuous_batching(self):
-        # Continuous batching emulation is only enabled for vllm_latest.
-        self._continuous_mode = (common.local_scheduler == "vllm_latest")
+        # Retain the previous emulation only under its explicit legacy name.
+        self._continuous_mode = (common.local_scheduler == "vllm_legacy")
         self._virtual_continuous_slots = []
         self._continuous_longest_req_id = None
         self._continuous_target_slots = 0
@@ -391,7 +391,15 @@ class processing:
             return next_chiplet, 0
         return selected_chiplet, 0
     
+    def select_inferences(self):
+        return [inf for req in self.requests for inf in req._infs.values() if inf.process_idx == req._process_idx]
 
+    def restore_iteration(self):
+        """Whole-request executors start with empty private state."""
+
+    def yield_iteration(self, timestep):
+        """Whole-request executors keep ownership until request completion."""
+        return False
 
     def run(self, env: simpy.Environment, chip_graph: chips_network.chip_graph, mem_sys: mem_sys.mem_sys, comp_sys: comp_sys.comp_sys):
         self.IDLE = False
@@ -406,7 +414,7 @@ class processing:
         #     raise ValueError(f"Multiple requests found with ID {self.batch_id}. Expected only one.")
         self.current_batch = [batch for batch in common.RequestQueue.running if batch._id == self.batch_id][0]
         # self.requests = self.requests
-        self.infs_to_process = [inf for req in self.requests for inf in req._infs.values() if inf.process_idx == req._process_idx]
+        self.infs_to_process = self.select_inferences()
         self.blocks_to_process = [inf.blocks[inf.process_idx] for inf in self.infs_to_process]
         batch_done = False
         batch_size = len(self.requests)
@@ -414,6 +422,7 @@ class processing:
         self.states_cache = {req._id: [] for req in self.requests} # KV and state cachees
         pre_states_cache = None # 
         self._init_continuous_batching()
+        self.restore_iteration()
         
         # initialize input embedding into the input cache and memory system
         
@@ -688,6 +697,9 @@ class processing:
                 self.infs_to_process.pop(index)
                 self.blocks_to_process.pop(index)
             batch_size = len(self.requests)
+
+            if all(completed_inferences) and self.yield_iteration(env.now):
+                return
 
             prefill_penalty_ticks = self._admit_virtual_continuous_slots()
             if prefill_penalty_ticks > 0:

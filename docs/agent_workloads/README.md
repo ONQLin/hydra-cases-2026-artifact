@@ -34,15 +34,26 @@ Tool schemas, conversation history and returned text affect the next prompt's
 token count. The next call is released only after its predecessor completes and
 the tool wait elapses. Independent sessions can overlap.
 
-Replay recomputes the full prompt on every call and releases KV or recurrent
-state between calls. The baseline uses the existing static scheduler with
-batch size 1, static mapping and pipeline execution. Tool waits consume no
-accelerator compute. Tools may use an external delay model or a shared host CPU
-profile with bounded workers/workspace; both support payload serialization and
-RTT. The host resource is outside the chiplet mesh. Placed CPU area/energy, host
-DMA contention with accelerator HBM traffic, shared NICs and general fork/join
-graphs require additional models. Prefix retention and recurrent checkpoint
-restoration are outside this replay baseline.
+The default mode recomputes the full prompt on every call and releases KV or
+recurrent state between calls. Optional [runtime baselines](scheduling/README.md)
+add priority/QoS ordering, compatible partial batches, and bounded HBM prefix
+retention for dense GQA models with explicit prefix identities. Tool waits consume
+no accelerator compute; retained prefixes may still occupy HBM. Tools may use an external delay model or
+a shared host CPU profile with bounded workers/workspace. Both support explicit
+payload serialization and RTT. The host resource is outside the chiplet mesh;
+placed CPU area/energy, host DMA contention with accelerator HBM traffic, shared
+NICs and general fork/join graphs require additional models. Optional
+[host DRAM prefix offload](scheduling/runtime_evolution/README.md) includes
+capacity partitions and an effective shared transfer link.
+
+The updated `vllm_latest` scheduler supports real iteration-level continuous
+batching with resident private state; `agent` keeps the whole-call baseline.
+See [runtime contracts and validation](scheduling/runtime_evolution/README.md).
+Recurrent checkpoint restoration remains deferred.
+
+See the [real BFCL runtime trade study](../../tests/validation/agent_workloads/bfcl_trade/README.md)
+for a controlled comparison of priority, batching and independent request
+concurrency, with reproducible figures and complete-trajectory checks.
 
 BFCL's pinned handler records input/output token counts by turn and step. We use
 those counts directly, including any history/schema overhead counted by the

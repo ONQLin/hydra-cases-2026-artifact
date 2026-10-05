@@ -21,13 +21,15 @@ class AgentReplayValidation(ModernModelValidation):
         path = self.output_dir / 'manifest.json'
         manifest = json.loads(path.read_text())
         manifest['scope'] = 'Fixed agent trajectory performance replay; task correctness is not evaluated.'
-        manifest['selection'] = 'Selected complete sessions; static batching with full-prompt recomputation.'
+        manifest['selection'] = 'Selected complete sessions; runtime options and prefix declarations are preserved in effective configuration.'
         for directory in ('integrations/workloads', 'Sim/request_generator', 'Sim/scheduler'):
             for source in sorted((ROOT / directory).glob('*.py')):
                 manifest['source_sha256'][str(source.relative_to(ROOT))] = hashlib.sha256(source.read_bytes()).hexdigest()
         for name in ('Sim/entities/agent_workload.py', 'Sim/entities/request.py',
                      'Sim/config/agent_config.py', 'Sim/execution/tool_system.py',
-                     'Sim/sim_core.py',
+                     'Sim/config/agent_scheduler_config.py', 'Sim/execution/prefix_cache.py',
+                     'Sim/execution/host_prefix_cache.py',
+                     'Sim/execution/continuous.py', 'Sim/sim_core.py',
                      'Sim/execution/native.py', 'analytic_profile/modern.py',
                      'tests/validation/agent_workloads/validate.py'):
             manifest['source_sha256'][name] = hashlib.sha256((ROOT/name).read_bytes()).hexdigest()
@@ -35,6 +37,14 @@ class AgentReplayValidation(ModernModelValidation):
         return point
 
     def configure_command(self, command):
+        if getattr(self.args, 'scheduler', 'static') in ('agent', 'vllm_latest'):
+            command[command.index('--cluster-config.local-scheduler')+1] = self.args.scheduler
+            from dataclasses import fields
+            from Sim.config.agent_scheduler_config import AgentSchedulerConfig
+            for item in fields(AgentSchedulerConfig):
+                value = getattr(self.args, item.name, None)
+                if value is not None:
+                    command.extend(['--cluster-config.agent-scheduler.'+item.name.replace('_', '-'), str(value)])
         prefix = '--workload-config.request-generator-config.'
         command.extend([prefix+'generator', 'agent', prefix+'agent-trace-file', str(self.args.trace.resolve())])
         options = prefix+'agent-config.'
@@ -89,8 +99,66 @@ class AgentReplayValidation(ModernModelValidation):
                 raise RuntimeError('Session completion omitted final external work.')
         result['agent_audit'] = {key: report[key] for key in ('completed_sessions', 'completed_calls')}
         result['agent_sessions'] = report['sessions']
+        cache = report.get('prefix_cache')
+        if cache and (cache['pinned_references'] or cache['resident_bytes'] > cache['capacity_bytes']):
+            raise RuntimeError('Prefix cache has live references or exceeds capacity.')
+        if cache and 'host' in cache:
+            host = cache['host']
+            if (cache['pending_transfers'] or cache['restore_admission_leases'] or host['pinned_references']
+                    or host['kv_used_bytes'] + host['tool_workspace_reserved_bytes'] > host['capacity_bytes']):
+                raise RuntimeError('Host cache copies/leases did not drain or exceed DRAM capacity.')
+            previous_end = 0
+            for transfer in cache['transfers']:
+                if (transfer['completed_tick'] is None or transfer['started_tick'] < previous_end
+                        or transfer['started_tick'] < transfer['submitted_tick']
+                        or transfer['completed_tick'] != transfer['started_tick'] + transfer['service_ticks']):
+                    raise RuntimeError('Host transfer timing or shared-link serialization failed.')
+                previous_end = transfer['completed_tick']
+        if report.get('outstanding_reservations', 0):
+            raise RuntimeError('Request reservations did not drain.')
+        for memory in report.get('memory', []):
+            expected = memory['weights_mib'] + memory['retained_prefix_mib']
+            if (memory['live_private_objects'] or abs(memory['used_mib']-expected) > 1e-6
+                    or abs(memory['reserved_mib']-expected) > 1e-6):
+                raise RuntimeError('Placed memory did not drain to weights plus retained prefixes.')
         AgentReplayValidation.verify_tools(workload, report)
+        continuous = run.read('continuous_batching.json')
+        if continuous:
+            AgentReplayValidation.verify_iterations(report, continuous)
 
+    @staticmethod
+    def verify_iterations(report, continuous):
+        if (continuous['resident_request_ids'] or continuous['retained_private_states']
+                or continuous['running_batches']):
+            raise RuntimeError('Continuous private state or iteration batch did not drain.')
+        calls = {r['request_id']: r for r in report['calls']}
+        history = {key: [] for key in calls}
+        previous_end = 0
+        for iteration in continuous['iterations']:
+            ids = iteration['request_ids']
+            end = iteration['completed_tick']
+            if (end is None or iteration['started_tick'] < previous_end or end < iteration['started_tick']
+                    or len(ids) != len(set(ids)) or len(ids) != len(iteration['contexts'])
+                    or not set(iteration['completed_request_ids']).issubset(ids)):
+                raise RuntimeError('Invalid continuous iteration membership or timing.')
+            previous_end = end
+            for rid, context in zip(ids, iteration['contexts']):
+                if rid not in history:
+                    raise RuntimeError('Continuous scheduler executed a fabricated request.')
+                history[rid].append((iteration, context))
+        for rid, call in calls.items():
+            steps = history[rid]
+            if len(steps) != call['output_tokens']:
+                raise RuntimeError('Each output token must correspond to one complete model iteration.')
+            for index, (iteration, context) in enumerate(steps):
+                if (iteration['stage'] != ('prefill' if index == 0 else 'decode')
+                        or context != call['input_tokens'] + index
+                        or (rid in iteration['completed_request_ids']) != (index == len(steps)-1)):
+                    raise RuntimeError('Continuous stage/context cursor or completion mismatch.')
+            if (steps[0][0]['started_tick'] != call['scheduled_tick']
+                    or steps[0][0]['completed_tick'] != call['first_token_tick']
+                    or steps[-1][0]['completed_tick'] != call['completed_tick']):
+                raise RuntimeError('Continuous iteration timing disagrees with the agent call log.')
 
     @staticmethod
     def verify_tools(workload, report):
@@ -145,7 +213,13 @@ def main():
     parser.add_argument('--task-ids', nargs='+')
     parser.add_argument('--stop-when-complete', action='store_true')
     parser.add_argument('--allow-model-mismatch', action='store_true')
-    parser.set_defaults(batch_size=1, memory_chiplets=None, dataset_label='bfcl',
+    parser.add_argument('--scheduler', choices=['static', 'agent', 'vllm_latest'], default='static')
+    parser.add_argument('--batch-size', type=int, default=1)
+    from dataclasses import fields
+    from Sim.config.agent_scheduler_config import AgentSchedulerConfig
+    for item in fields(AgentSchedulerConfig):
+        parser.add_argument('--'+item.name.replace('_', '-'), type=item.type)
+    parser.set_defaults(memory_chiplets=None, dataset_label='bfcl',
                         arrival_interval=0, require_complete=True, virtual_channels=8,
                         transfer_timeout=120, dma_pacing=False, dma_burst_bytes=4096,
                         packet_quantum_bytes=1024, packet_buffer_bytes=16384)
