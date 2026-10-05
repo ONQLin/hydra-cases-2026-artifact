@@ -1,0 +1,24 @@
+{
+  "retrieved_date": "2026-10-03",
+  "repository": "ShishirPatil/gorilla",
+  "revision": "6ea57973c7a6097fd7c5915698c54c17c5b1b6c8",
+  "path": "berkeley-function-call-leaderboard/bfcl_eval/data/BFCL_v4_multi_turn_base.json",
+  "source_url": "https://raw.githubusercontent.com/ShishirPatil/gorilla/6ea57973c7a6097fd7c5915698c54c17c5b1b6c8/berkeley-function-call-leaderboard/bfcl_eval/data/BFCL_v4_multi_turn_base.json",
+  "sha256": "1a21a995d06fd6f20ba55de7bced30ef953ec35e998f502ec2ecf4d66ef1c43a",
+  "entries": 200,
+  "example_id": "multi_turn_base_0",
+  "top_level_field_types": {
+    "id": "str",
+    "question": "list",
+    "initial_config": "dict",
+    "path": "list",
+    "involved_classes": "list",
+    "excluded_function": "list"
+  },
+  "question_turns_per_entry": {
+    "min": 1,
+    "max": 7
+  },
+  "contains_token_counts": false,
+  "contains_timing_fields": false
+}

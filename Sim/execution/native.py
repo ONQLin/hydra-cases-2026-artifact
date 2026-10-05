@@ -37,9 +37,10 @@ class NativeExecutionBackend(BaseExecutionBackend):
                 arguments['L_seq'] = block.context_length
                 if stage == "prefill" and 'in_size' in arguments:
                     arguments['in_size'] *= block.context_length
+                arguments['stage'] = stage
                 arguments['logic_name'] = logic_name
                 arguments['ext_bw'] = bandwidth
-                profiles.append(analytic_model.get_kernel(name, **arguments))
+                profiles.append(analytic_model.profile_kernel(name, **arguments))
         return profiles
 
     def execute_block(self, block, stage, batch_size, chiplet, memory_id, bandwidth):

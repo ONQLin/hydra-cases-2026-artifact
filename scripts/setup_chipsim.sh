@@ -33,10 +33,8 @@ if ! has_shared_python "${PYTHON_BIN}"; then
     fi
 fi
 
-if [[ ! -f "${CHIPSIM_DIR}/simulate.py" ]]; then
-    echo "Initializing the CHIPSIM submodule..."
-    git -C "${ROOT_DIR}" submodule update --init --recursive third_party/CHIPSIM
-fi
+echo "Checking out the pinned CHIPSIM submodule..."
+git -C "${ROOT_DIR}" submodule update --init --recursive third_party/CHIPSIM
 
 for command in c++ m4; do
     if ! command -v "${command}" >/dev/null 2>&1; then
@@ -58,18 +56,6 @@ else
 fi
 "${VENV_DIR}/bin/python" -m pip install --upgrade pip
 "${VENV_DIR}/bin/python" -m pip install -r "${CHIPSIM_DIR}/docs/requirements.txt"
-
-for PATCH_NAME in hydra_adapter garnet_runtime; do
-    PATCH_FILE="${ROOT_DIR}/integrations/chipsim/patches/${PATCH_NAME}.patch"
-    if git -C "${CHIPSIM_DIR}" apply --reverse --check "${PATCH_FILE}" >/dev/null 2>&1; then
-        echo "${PATCH_NAME} is already applied."
-    elif git -C "${CHIPSIM_DIR}" apply --check "${PATCH_FILE}"; then
-        git -C "${CHIPSIM_DIR}" apply "${PATCH_FILE}"
-    else
-        echo "${PATCH_NAME} conflicts with local changes; see ${PATCH_FILE}."
-        exit 1
-    fi
-done
 
 echo "Building gem5 Garnet with ${BUILD_JOBS} jobs..."
 (

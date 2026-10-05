@@ -62,6 +62,8 @@ class NetworkExecutionMixin:
         return self.env
 
     def _submit(self, source, destination, byte_count):
+        if self.is_package_transfer(source, destination):
+            raise ValueError('Remote traffic must use the package fabric, not the local network.')
         if byte_count <= 0 or source == destination:
             return self.env.timeout(0)
         self.flow_id += 1

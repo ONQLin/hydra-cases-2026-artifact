@@ -34,15 +34,30 @@ class StaticReplicaScheduler(BaseReqScheduler):
                 assert isinstance(block_params, Params), "block_params is not an instance of Params."
                 type_idx = model_config.block_type_sequence[block_params.block_id]
                 block_config = model_config.hybrid_blocks[type_idx]
-                if block_config.cache_store:
+                if block_config.memory_accounting_version >= 3:
+                    mem_req_per_request += max(
+                        block_config.reservation_bytes(model_config.max_position_embeddings, prefill)
+                        for prefill in (True, False))
+                elif block_config.cache_store:
                     mem_req_per_request += (block_config.states*model_config.max_position_embeddings + block_config.peak_intermed)
                 else:
                     mem_req_per_request += (block_config.states + block_config.peak_intermed)
             
+            # An unused HBM imposes no per-request capacity limit.
+            if mem_req_per_request == 0:
+                continue
             max_requests = (left_budget) // mem_req_per_request
             if max_requests < self._max_concurrent_requests:
                 self._max_concurrent_requests = int(max_requests) # set the max 
         print(f"Set max concurrent requests to {self._max_concurrent_requests} based on memory chiplet budgets.")
+
+    def request_memory_mib(self, incoming_req, block):
+        pf_memory = (block.peak_intermediate_store + block.states_store) if incoming_req.has_prefill() else 0
+        dc_memory = (block.peak_intermediate_store//block.context_length + (self.model_config.max_position_embeddings*block.block_config.states if block.block_config.cache_store else block.states_store)) if incoming_req.has_decode() else 0
+        if block.block_config.memory_accounting_version >= 3:
+            dc_memory = block.block_config.reservation_bytes(
+                self.model_config.max_position_embeddings, False) if incoming_req.has_decode() else 0
+        return max(pf_memory, dc_memory) * common.ByteperParam / (1024 * 1024)
 
     def schedule_request(self, mem_sys: mem_sys.mem_sys, comp_sys: comp_sys.comp_sys, batchsize = 1) -> int:
         if len(common.RequestQueue.outstanding) < batchsize:
@@ -84,10 +99,7 @@ class StaticReplicaScheduler(BaseReqScheduler):
             else:
                 inf_req: infer = incoming_req._infs["decode"]
             for block in inf_req.blocks:
-                pf_memory = (block.peak_intermediate_store + block.states_store) if incoming_req.has_prefill() else 0
-                dc_memory = (block.peak_intermediate_store//block.context_length + (self.model_config.max_position_embeddings*block.block_config.states if block.block_config.cache_store else block.states_store)) if incoming_req.has_decode() else 0
-                
-                allocated_memory = max(pf_memory, dc_memory) * common.ByteperParam / (1024 * 1024)  # convert to MB
+                allocated_memory = self.request_memory_mib(incoming_req, block)
                 block_name = f'Block {block.block_num}'
                 allocate_success = mem_sys.check_memchiplets_availability(allocated_memory, block_name)
                 if allocate_success == -1:

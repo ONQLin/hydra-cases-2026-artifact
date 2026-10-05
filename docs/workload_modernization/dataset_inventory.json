@@ -1,0 +1,294 @@
+[
+  {
+    "file": "dataset/arxiv/arxiv_summarization_stats_llama3.csv",
+    "rows": 28257,
+    "columns": [
+      "num_prefill_tokens",
+      "num_decode_tokens",
+      "num_total_tokens",
+      "pd_ratio"
+    ],
+    "num_prefill_tokens": {
+      "min": 1.0,
+      "median": 2730.0,
+      "p95": 3813.0,
+      "max": 4054.0
+    },
+    "num_decode_tokens": {
+      "min": 5.0,
+      "median": 167.0,
+      "p95": 736.0,
+      "max": 4056.0
+    }
+  },
+  {
+    "file": "dataset/arxiv/arxiv_summarization_stats_mamba2.csv",
+    "rows": 28257,
+    "columns": [
+      "num_prefill_tokens",
+      "num_decode_tokens",
+      "num_total_tokens",
+      "pd_ratio"
+    ],
+    "num_prefill_tokens": {
+      "min": 1.0,
+      "median": 2730.0,
+      "p95": 3813.0,
+      "max": 4054.0
+    },
+    "num_decode_tokens": {
+      "min": 5.0,
+      "median": 167.0,
+      "p95": 736.0,
+      "max": 4056.0
+    }
+  },
+  {
+    "file": "dataset/arxiv/arxiv_summarization_stats_nemo.csv",
+    "rows": 28257,
+    "columns": [
+      "num_prefill_tokens",
+      "num_decode_tokens",
+      "num_total_tokens",
+      "pd_ratio"
+    ],
+    "num_prefill_tokens": {
+      "min": 1.0,
+      "median": 2730.0,
+      "p95": 3813.0,
+      "max": 4054.0
+    },
+    "num_decode_tokens": {
+      "min": 5.0,
+      "median": 167.0,
+      "p95": 736.0,
+      "max": 4056.0
+    }
+  },
+  {
+    "file": "dataset/bwb/bwb_translation_stats_llama3.csv",
+    "rows": 195522,
+    "columns": [
+      "source_file_id",
+      "line_number",
+      "num_prefill_tokens",
+      "num_decode_tokens",
+      "num_total_tokens",
+      "pd_ratio"
+    ],
+    "num_prefill_tokens": {
+      "min": 4.0,
+      "median": 3281.0,
+      "p95": 5111.0,
+      "max": 28320.0
+    },
+    "num_decode_tokens": {
+      "min": 2.0,
+      "median": 2192.0,
+      "p95": 3458.0,
+      "max": 18070.0
+    }
+  },
+  {
+    "file": "dataset/bwb/bwb_translation_stats_mamba2.csv",
+    "rows": 195522,
+    "columns": [
+      "source_file_id",
+      "line_number",
+      "num_prefill_tokens",
+      "num_decode_tokens",
+      "num_total_tokens",
+      "pd_ratio"
+    ],
+    "num_prefill_tokens": {
+      "min": 4.0,
+      "median": 3281.0,
+      "p95": 5111.0,
+      "max": 28320.0
+    },
+    "num_decode_tokens": {
+      "min": 2.0,
+      "median": 2192.0,
+      "p95": 3458.0,
+      "max": 18070.0
+    }
+  },
+  {
+    "file": "dataset/bwb/bwb_translation_stats_nemo.csv",
+    "rows": 195522,
+    "columns": [
+      "source_file_id",
+      "line_number",
+      "num_prefill_tokens",
+      "num_decode_tokens",
+      "num_total_tokens",
+      "pd_ratio"
+    ],
+    "num_prefill_tokens": {
+      "min": 4.0,
+      "median": 3281.0,
+      "p95": 5111.0,
+      "max": 28320.0
+    },
+    "num_decode_tokens": {
+      "min": 2.0,
+      "median": 2192.0,
+      "p95": 3458.0,
+      "max": 18070.0
+    }
+  },
+  {
+    "file": "dataset/chat/chat1m_stats_llama3.csv",
+    "rows": 19975,
+    "columns": [
+      "num_prefill_tokens",
+      "num_decode_tokens",
+      "num_total_tokens",
+      "pd_ratio"
+    ],
+    "num_prefill_tokens": {
+      "min": 1.0,
+      "median": 23.0,
+      "p95": 369.0,
+      "max": 1579.0
+    },
+    "num_decode_tokens": {
+      "min": 1.0,
+      "median": 154.0,
+      "p95": 516.0,
+      "max": 492199.0
+    }
+  },
+  {
+    "file": "dataset/chat/chat1m_stats_mamba2.csv",
+    "rows": 19975,
+    "columns": [
+      "num_prefill_tokens",
+      "num_decode_tokens",
+      "num_total_tokens",
+      "pd_ratio"
+    ],
+    "num_prefill_tokens": {
+      "min": 1.0,
+      "median": 23.0,
+      "p95": 369.0,
+      "max": 1579.0
+    },
+    "num_decode_tokens": {
+      "min": 1.0,
+      "median": 154.0,
+      "p95": 516.0,
+      "max": 492199.0
+    }
+  },
+  {
+    "file": "dataset/chat/chat1m_stats_nemo.csv",
+    "rows": 19975,
+    "columns": [
+      "num_prefill_tokens",
+      "num_decode_tokens",
+      "num_total_tokens",
+      "pd_ratio"
+    ],
+    "num_prefill_tokens": {
+      "min": 1.0,
+      "median": 23.0,
+      "p95": 369.0,
+      "max": 1579.0
+    },
+    "num_decode_tokens": {
+      "min": 1.0,
+      "median": 154.0,
+      "p95": 516.0,
+      "max": 492199.0
+    }
+  },
+  {
+    "file": "dataset/longwriter/long_writer_jamba_mini_1.7_6k.csv",
+    "rows": 6000,
+    "columns": [
+      "num_prefill_tokens",
+      "num_decode_tokens",
+      "num_total_tokens",
+      "pd_ratio"
+    ],
+    "num_prefill_tokens": {
+      "min": 6.0,
+      "median": 85.0,
+      "p95": 1418.0,
+      "max": 13623.0
+    },
+    "num_decode_tokens": {
+      "min": 2.0,
+      "median": 5959.0,
+      "p95": 15038.0,
+      "max": 46885.0
+    }
+  },
+  {
+    "file": "dataset/longwriter/long_writer_mamba_6k.csv",
+    "rows": 6000,
+    "columns": [
+      "num_prefill_tokens",
+      "num_decode_tokens",
+      "num_total_tokens",
+      "pd_ratio"
+    ],
+    "num_prefill_tokens": {
+      "min": 5.0,
+      "median": 97.0,
+      "p95": 1478.0,
+      "max": 15870.0
+    },
+    "num_decode_tokens": {
+      "min": 1.0,
+      "median": 6752.0,
+      "p95": 17140.0,
+      "max": 60430.0
+    }
+  },
+  {
+    "file": "dataset/longwriter/long_writer_nemo_6k.csv",
+    "rows": 6000,
+    "columns": [
+      "num_prefill_tokens",
+      "num_decode_tokens",
+      "num_total_tokens",
+      "pd_ratio"
+    ],
+    "num_prefill_tokens": {
+      "min": 5.0,
+      "median": 97.0,
+      "p95": 1478.0,
+      "max": 15870.0
+    },
+    "num_decode_tokens": {
+      "min": 1.0,
+      "median": 6752.0,
+      "p95": 17140.0,
+      "max": 60430.0
+    }
+  },
+  {
+    "file": "dataset/longwriter/long_writer_transformer_1.3b_6k.csv",
+    "rows": 6000,
+    "columns": [
+      "num_prefill_tokens",
+      "num_decode_tokens",
+      "num_total_tokens",
+      "pd_ratio"
+    ],
+    "num_prefill_tokens": {
+      "min": 6.0,
+      "median": 133.0,
+      "p95": 1819.0,
+      "max": 24883.0
+    },
+    "num_decode_tokens": {
+      "min": 2.0,
+      "median": 9309.5,
+      "p95": 26412.0,
+      "max": 101666.0
+    }
+  }
+]

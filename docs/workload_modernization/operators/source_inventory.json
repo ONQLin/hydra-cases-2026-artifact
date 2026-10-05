@@ -1,0 +1,26 @@
+{
+  "retrieved": "2026-10-04",
+  "scope": "Read-only source inspection; no downloaded source was executed or vendored. Main-branch URLs are identified by content hashes, not immutable revisions.",
+  "sources": [
+    {
+      "file": "kda.py",
+      "url": "https://raw.githubusercontent.com/fla-org/flash-linear-attention/main/fla/layers/kda.py",
+      "sha256": "df262b935f0cefa3fbff1a21d213b9924836527b27d2031e5403963802910760"
+    },
+    {
+      "file": "deepseek_model.py",
+      "url": "https://raw.githubusercontent.com/deepseek-ai/DeepSeek-V3/main/inference/model.py",
+      "sha256": "fdb7995bc234badbf0011b5af8cf391be94343abc51305428cb9a04452116f02"
+    },
+    {
+      "file": "kimi_model.py",
+      "url": "https://huggingface.co/moonshotai/Kimi-Linear-48B-A3B-Instruct/resolve/e1df551a447157d4658b573f9a695d57658590e9/modeling_kimi.py",
+      "sha256": "d79b365e37378881b9f1585007a56e236ca27a414920943cb85d1dacb75dda99"
+    },
+    {
+      "file": "kda_naive.py",
+      "url": "https://raw.githubusercontent.com/fla-org/flash-linear-attention/main/fla/ops/kda/naive.py",
+      "sha256": "60a32285d4b67068ff633b48bbe8ab31028066d24f00d27e12199a88fc73f016"
+    }
+  ]
+}

@@ -6,7 +6,7 @@ from pyvis.network import Network
 import numpy as np
 
 from Sim.config.sys_config import HPSim_Config
-from Sim.request_generator.trace_request_generator import TraceRequestGenerator
+from Sim.request_generator.base_request_source import BaseRequestSource
 import Sim.common as common
 import Sim.config.utils as utils
 from Sim.entities.chips_network import chip_graph
@@ -44,6 +44,8 @@ class Simulator:
         self.setup_config(config)
 
     def setup_config(self, config: HPSim_Config):
+        config.package_config.validate_execution(config)
+        config.workload_config.model_config.validate_execution(config)
         random.seed(config.seed)
         np.random.seed(config.seed)
         # load some variables to common and utils from config
@@ -76,8 +78,10 @@ class Simulator:
         common.inj_finish = False
 
         logger.info("Feed Request ...")
-        self._request_generator = TraceRequestGenerator(sim_done=sim_done, tr_config=self._config.workload_config.request_generator_config,
-                                                        mod_config=self._config.workload_config.model_config, env=env)
+        request_config = self._config.workload_config.request_generator_config
+        source_class = BaseRequestSource.create_from_name(request_config.generator)
+        self._request_generator = source_class(sim_done=sim_done, tr_config=request_config,
+                                              mod_config=self._config.workload_config.model_config, env=env)
 
         common.output_folder = self._config.metrics_config.output_dir
         file = common.output_folder + "/log_info.txt"
@@ -113,7 +117,18 @@ class Simulator:
             utils.used_bws = utils.used_bws_dict_tensor[utils.NoI_bw] # overwrite the used_bws for tensor parallelism
         else:
             raise ValueError(f"Unknown task parallelism: {common.task_parallelism}")
-        self.mem_sys = mem_sys(self.resources_graph)
+        self.package_system = None
+        if self._config.package_config.count > 1:
+            from Sim.entities.package_system import PackageSystem
+            self.package_system = PackageSystem(self._config.package_config, self.resources_graph,
+                                                self._config.workload_config.model_config)
+            self.resources_graph = self.package_system.graph
+            self.mem_sys = self.package_system.memory
+            # Existing area is a chiplet/interposer proxy, excluding the new
+            # fabric switch/PHY. Record that scope rather than price the fabric.
+            utils.total_area *= self._config.package_config.count
+        else:
+            self.mem_sys = mem_sys(self.resources_graph)
         self.mem_sys.load_model(label=load_label, mod_config=self._config.workload_config.model_config, 
                                group_HBM_M=group_HBM_M, group_HBM_A=group_HBM_A)
         logger.info("Init Comp system ...")
@@ -121,7 +136,7 @@ class Simulator:
 
         # it is aborted because we now just input the hw logic instance to the analytical model
         # common.configure_chip_features(common.analytic_models_config, Col_PE=24, Row_PE=24, Num_Array=8, C_sram=16, DMAs=8, Sram_bw=32)
-        self.mapper = static_mapper()
+        self.mapper = self.package_system.mapper if self.package_system else static_mapper()
         common.job_mapping, _ = self.mapper.generate_mapping(self._config.workload_config.model_config, self.comp_sys, self.mem_sys)
         self._request_generator.export_workload(common.output_folder)
         setup = {
@@ -133,6 +148,12 @@ class Simulator:
                                      int(self.resources_graph.graph.nodes[v]['id'])])
                              for u, v in self.resources_graph.graph.edges]),
         }
+        if self.package_system:
+            from dataclasses import asdict
+            setup['packages'] = dict(self.package_system.snapshot(),
+                                     fabric=asdict(self._config.package_config))
+            for node in setup['chiplets']:
+                node['package_id'] = self.resources_graph.package_of(node['id'])
         (Path(common.output_folder) / "system_snapshot.json").write_text(json.dumps(setup, indent=2))
         logger.info("Init Simulation Manager ...")
         self.metrics_recorder = ServingMetricsRecorder(common.output_folder)
@@ -144,9 +165,16 @@ class Simulator:
         try:
             self.execution_backend.initialize(self.resources_graph, self.mem_sys,
                                               self.comp_sys, common.job_mapping)
+            if self.package_system:
+                self.execution_backend.initialize_packages(env, self.resources_graph, Path(common.output_folder))
             env.run(until=sim_done)
         finally:
-            self.execution_backend.close()
+            try:
+                network = getattr(self.execution_backend, 'package_network', None)
+                if network is not None:
+                    network.close()
+            finally:
+                self.execution_backend.close()
 
         total_tokens = tokens_monitor.output_tokens
         total_finish_tokens = tokens_monitor.finished_tokens
@@ -218,9 +246,12 @@ class Simulator:
             "pending_requests": request_counter.pending_requests,
             "preempted_requests": total_preempted_requests,
             "area_mm2": utils.total_area,
-            "measurement_window": "from t=0 through fixed simulation cutoff; no warmup exclusion",
+            "measurement_window": ("from t=0 through workload completion or cutoff; no warmup exclusion"
+                                   if request_config.generator == 'agent' and request_config.agent_config.stop_when_complete
+                                   else "from t=0 through fixed simulation cutoff; no warmup exclusion"),
         }
         metrics_path = Path(common.output_folder) / "metrics.json"
+        self._request_generator.finalize(common.output_folder, env.now)
         temporary = metrics_path.with_suffix('.tmp')
         temporary.write_text(json.dumps(metrics, indent=2))
         temporary.replace(metrics_path)

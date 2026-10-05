@@ -16,6 +16,10 @@ class static_mapper(BaseEntity):
     Represents a mapping for a llm model into chiplets
     """
 
+    def is_eligible(self, chiplet, block_id):
+        """Placement constraint hook for package-local subclasses."""
+        return True
+
     def generate_mapping(self, model_config:BaseModelConfig, comp_sys:comp_sys, mem_sys:mem_sys, bs = 32, pf_c = 32, NoI_bw = None):
         '''
         Generate a static mapping for the model into the chip graph.
@@ -24,15 +28,9 @@ class static_mapper(BaseEntity):
         lat_dict = {'P':{}, 'D':{}} # profile the comp latencies
         for stage_type in lat_dict.keys():
             for blk_idx, block_type in enumerate(model_config.hybrid_blocks):
-                # 'transformer' in block_type.type_name:
                 assert isinstance(block_type, BaseBlockConfig), "block_type must be an instance of BaseBlockConfig"
-                if 'transformer' in block_type.type_name:
-                    acc_list = utils.T_P if stage_type == 'P' else utils.T_D
-                elif 'mamba' in block_type.type_name:
-                    acc_list = utils.M_P if stage_type == 'P' else utils.M_D
-                else:
-                    raise NotImplementedError(f"Block type {block_type.type_name} not supported in static_mapper")
-                
+                acc_list = block_type.get_accelerators('prefill' if stage_type == 'P' else 'decode')
+
                 selected_accs = set()
                 # look through the comp_sys to find the acc chiplets
                 for acc in acc_list:
@@ -67,9 +65,10 @@ class static_mapper(BaseEntity):
                                 func_args['bs'] = 1
                                 func_args['batch_size'] = bs
                                 func_args['L_seq'] = pf_c
+                            func_args['stage'] = 'prefill' if stage_type == 'P' else 'decode'
                             func_args['logic_name'] = logic_name
                             func_args['ext_bw'] = utils.NoI_bw if NoI_bw is None else NoI_bw
-                            analytic_res:analytics = analytic_profiles.get_kernel(name, **func_args)
+                            analytic_res:analytics = analytic_profiles.profile_kernel(name, **func_args)
                             total_latency += common.convert_analy_time(analytic_res.total_latency)
                     lat_dict[stage_type][blk_idx] = lat_dict[stage_type].get(blk_idx, {})
                     lat_dict[stage_type][blk_idx][acc] = total_latency
@@ -94,7 +93,8 @@ class static_mapper(BaseEntity):
                 for comp_chip in comp_sys._comp_chiplets:
                     # constrain the selectiion
                     try:
-                        if comp_chip.chiplet_type in lat_dict[stage_type][blk_idx]:      
+                        if (comp_chip.chiplet_type in lat_dict[stage_type][blk_idx]
+                                and self.is_eligible(comp_chip, blk_no)):
                             avail_chiplets.add(comp_chip.chiplet_id)
                     except KeyError:
                         continue

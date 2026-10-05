@@ -391,6 +391,8 @@ class processing:
             return next_chiplet, 0
         return selected_chiplet, 0
     
+
+
     def run(self, env: simpy.Environment, chip_graph: chips_network.chip_graph, mem_sys: mem_sys.mem_sys, comp_sys: comp_sys.comp_sys):
         self.IDLE = False
         while(True):
@@ -404,7 +406,7 @@ class processing:
         #     raise ValueError(f"Multiple requests found with ID {self.batch_id}. Expected only one.")
         self.current_batch = [batch for batch in common.RequestQueue.running if batch._id == self.batch_id][0]
         # self.requests = self.requests
-        self.infs_to_process = [inf for req in self.requests for inf in req._infs.values() if inf.process_idx == req._process_idx] 
+        self.infs_to_process = [inf for req in self.requests for inf in req._infs.values() if inf.process_idx == req._process_idx]
         self.blocks_to_process = [inf.blocks[inf.process_idx] for inf in self.infs_to_process]
         batch_done = False
         batch_size = len(self.requests)
@@ -432,6 +434,11 @@ class processing:
                 
                 if item.chip_id == target_weight_chiplet.chiplet_id:
                     continue  # No transmission needed
+
+                if self.execution_backend.is_package_transfer(item.chip_id, target_weight_chiplet.chiplet_id):
+                    yield from self.execution_backend.transfer_package_input(
+                        env, chip_graph, mem_sys, item, target_weight_chiplet.chiplet_id)
+                    continue
                 
                 int_mem_chiplet = mem_sys.get_mem_byid(item.chip_id)
                 alloc_io_bw = min(int(utils.IO_bw / 3), 128)  # in GBps, allocate part of the IO bandwidth for data transmission
@@ -505,18 +512,9 @@ class processing:
                         continue
                     mem_sys.load_data_byid(target_weight_chiplet.chiplet_id, input_intermediate, env.now)  # load the input embedding into the target chiplet
 
-            # identify the workload type #TODO
-            block_type = self.blocks_to_process[0].block_config.type_name
-            # Hybrid LLM only Mamba/Transformer's P or D
-            # TODO: do this more elegantly
-            if 'transformer' in block_type:
-                block_type = utils.T_P if self.infs_to_process[0].type == 'prefill' else utils.T_D
-                block_types_t = [utils.T_P, utils.T_D]
-            elif 'mamba' in block_type:
-                block_type = utils.M_P if self.infs_to_process[0].type == 'prefill' else utils.M_D
-                block_types_t = [utils.M_P, utils.M_D]
-            else:
-                raise ValueError(f"Unknown block type {block_type} for block {block_id}.")
+            block_config = self.blocks_to_process[0].block_config
+            block_type = block_config.get_accelerators(self.infs_to_process[0].type)
+            block_types_t = [block_config.get_accelerators(stage) for stage in ('prefill', 'decode')]
 
             selected_C_chiplet = None
             route = None  
@@ -566,9 +564,7 @@ class processing:
                     pre_states_cache = self.states_cache[req_id][block_id]
                     # self.states_cache[req_id][block_id] = intermediate(size=common.convert_param_mB(block_to_process.states_store), block_id=block_id, name=f"Block {block_id} states cache",
                     #                             chip_id=target_weight_chiplet.chiplet_id, req_id=req_id)
-                    if block_to_process.states_store > pre_states_cache.size:
-                        states_cache_vol = block_to_process.states_store - pre_states_cache.size
-                    total_inc_mem = common.convert_param_mB(int_load + states_cache_vol)
+                    total_inc_mem = block_to_process.additional_memory_mib(pre_states_cache.size)
                 if not target_weight_chiplet.is_capacity_available(total_inc_mem):
                 # if idx == 2:
                     logger.warning(f"Target chiplet {target_weight_chiplet.chiplet_id} does not have enough capacity for intermediates and states cache. preempt the request...")
@@ -598,6 +594,9 @@ class processing:
             """
             Step 6, comp latency, run the comp chiplet
             """
+            self.execution_backend.record_package_block(
+                selected_C_chiplet.chiplet_id, block_id, [r._id for r in self.requests],
+                self.infs_to_process[0].type, 'start')
             block_done, avg_util = self.execution_backend.start_block(
                 env,
                 self.blocks_to_process[0], self.infs_to_process[0].type,
@@ -606,6 +605,9 @@ class processing:
             )
             comp_sys.set_used_byid(chiplet_id=selected_C_chiplet.chiplet_id, util=avg_util, power=30.0, time=env.now)
             yield block_done
+            self.execution_backend.record_package_block(
+                selected_C_chiplet.chiplet_id, block_id, [r._id for r in self.requests],
+                self.infs_to_process[0].type, 'complete')
             comp_sys.set_free_byid(chiplet_id=selected_C_chiplet.chiplet_id, time=env.now)  # set the chiplet to idle after processing
             
             for item in self.input_cache:
@@ -622,8 +624,10 @@ class processing:
                 mem_sys.offload_data_byid(target_weight_chiplet.chiplet_id, temp_int_mem, env.now)
             self.check_members_length()
             requests_status = [False for _ in self.requests]
+            completed_inferences = []
             for index in range(len(self.requests)):
                 blk_process_status = self.infs_to_process[index].step_processing()
+                completed_inferences.append(blk_process_status)
                 inf_process_status = False
                 if blk_process_status == True:
                     # update the monitor
@@ -639,6 +643,11 @@ class processing:
             for index, request_status in enumerate(requests_status[:]):
                 if request_status == False:
                     output_intermediate = intermediate(size=common.convert_param_mB(block_to_process.output_act), block_id=block_id, name=f"Block {block_id} output", chip_id=target_weight_chiplet.chiplet_id, req_id=self.requests[index]._id)
+                    if completed_inferences[index] and getattr(self.execution_backend, 'package_network', None) is not None:
+                        # The next autoregressive iteration consumes a token ID,
+                        # not the entire previous prefill activation sequence.
+                        output_intermediate.size = self.execution_backend.config.package_config.token_bytes / 1024**2
+                        output_intermediate.name = f'Block {block_id} token feedback'
                     # TODO: check the capacity
                     if not target_weight_chiplet.is_capacity_available(output_intermediate.size):
                         logger.warning(f"Target chiplet {target_weight_chiplet.chiplet_id} does not have enough capacity for output intermediate. preempt the request...")
@@ -652,6 +661,8 @@ class processing:
                     # release all states
                     if self.requests[index].has_decode():
                         tokens_monitor.inc_finished_tokens(self.requests[index]._infs['decode'].max_decoding_length+1) # TODO: only for decode inf
+                    elif self.requests[index].has_prefill():
+                        tokens_monitor.inc_finished_tokens(1)
                     for state in self.states_cache[self.requests[index]._id]:
                         assert isinstance(state, intermediate), "State is not of type intermediate."
                         mem_sys.offload_data_byid(state.chip_id, state, env.now)
@@ -666,6 +677,7 @@ class processing:
                         
                     monitor.request_counter.decrement_running()
                     monitor.request_counter.increment_completed()
+                    self.requests[index].on_completion(env.now)
                     pop_indexs.append(index)
             # clean up finished requests
             for index in sorted(pop_indexs, reverse=True):
@@ -962,6 +974,8 @@ class processing:
                     # release all states
                     if self.requests[index].has_decode():
                         tokens_monitor.inc_finished_tokens(self.requests[index]._infs['decode'].max_decoding_length+1)
+                    elif self.requests[index].has_prefill():
+                        tokens_monitor.inc_finished_tokens(1)
                     for block_cache in self.states_cache[self.requests[index]._id]:
                         for chiplet_state in block_cache:
                             assert isinstance(chiplet_state, intermediate), "State is not of type intermediate."
@@ -973,6 +987,7 @@ class processing:
 
                     monitor.request_counter.decrement_running()
                     monitor.request_counter.increment_completed()
+                    self.requests[index].on_completion(env.now)
                     pop_indexs.append(index)
             # clean up finished requests
             for index in sorted(pop_indexs, reverse=True):
@@ -1055,7 +1070,7 @@ class processing:
         # update the monitor and task queue
         # current_batch:BatchOfRequests = [batch for batch in common.RequestQueue.running if temp_request in batch.ongoing_requests][0]   
         # remove the request from the current batch
-        copy_request:Request = deepcopy(temp_request)
+        copy_request:Request = temp_request.retry_request()
         if self.current_batch is not None:
             self.current_batch.remove_ongoing_request(temp_request._id)
         common.RequestQueue.outstanding.append(copy_request)

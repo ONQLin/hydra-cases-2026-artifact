@@ -10,8 +10,8 @@ Run all commands below from the HYDRA repository root.
 
 **CHIPSIM/Garnet** names the high-fidelity network backend (`chipsim_contended`).
 Existing figures abbreviate it as **CHIPSIM**. The integration reuses CHIPSIM's
-communication infrastructure and bundled gem5/Garnet checkout, with the supplied
-patches adding online control and optional DMA pacing.
+communication infrastructure and bundled gem5/Garnet checkout. The pinned
+CHIPSIM fork includes HYDRA adapters, online control and optional DMA pacing.
 
 HYDRA owns compute profiles and serving policy. Its `NetworkExecutionMixin`
 sequences phases, coordinates compute/network overlap, and delivers completion
@@ -43,11 +43,17 @@ phase completion = local timer elapsed AND all network flits received
 block completion = all sequential phases completed
 ```
 
+This formula applies to each primitive phase. New dependency-aware KDA/MLA
+profiles expand ordered phases into read, compute, then write primitives;
+writes reverse the compute/HBM endpoints. Legacy aggregate phases retain their
+overlap convention. See the [operator execution contract](../../docs/workload_modernization/operators/README.md).
+
 Supported validation: LLaMA3-8B and Nemotron-H-4B, Attention and SSM blocks,
 prefill/decode, static batching, static pipeline mapping, uniform meshes, and
 one-byte parameter profiles. Elastic mapping and tensor parallelism are rejected.
 Legacy aggregate memory traffic is represented as HBM-to-compute transfers;
-inter-block HBM-to-HBM movement is explicit.
+inter-block HBM-to-HBM movement is explicit. KDA/MLA graph profiles distinguish
+read and write traffic; their small serving fixture has also been validated.
 HYDRA still controls bandwidth reservations; Garnet's routes are not pinned to
 HYDRA's reserved paths. This validates network effects under a shared runtime
 and compute model, not an independent cycle-level implementation of the LLM.
@@ -69,10 +75,9 @@ git submodule update --init --recursive third_party/CHIPSIM
 bash scripts/setup_chipsim.sh
 ```
 
-The setup script applies `patches/hydra_adapter.patch` and
-`patches/garnet_runtime.patch`, then builds `gem5.opt`. Reapplying the same
-patches is safe; conflicting edits fail explicitly. To select the build Python
-or reduce memory usage, use
+The setup script checks out the pinned CHIPSIM submodule revision, creates
+the isolated Python environment, and builds `gem5.opt`. No patch application
+is needed. To select the build Python or reduce memory usage, use
 `PYTHON_BIN=/usr/bin/python3 CHIPSIM_BUILD_JOBS=4 bash scripts/setup_chipsim.sh`.
 The Python installation needs development headers and a shared `libpython`.
 Allow several GB for dependencies and build products; packet-level serving runs
@@ -218,16 +223,16 @@ or partially populated checkpoint report is not a completed curve validation.
 [CHIPSIM](https://github.com/ONQLin/CHIPSIM) is an open-source chiplet simulator
 using gem5 Garnet for network timing; its
 [paper](https://doi.org/10.1109/OJSSCS.2025.3626314) describes the upstream simulator.
-This integration was built against revision
-`21dcb0080a45e3be28cb870bd83cf9b9f7382961`. The local adapters and online
-Garnet/DMA extensions are carried in the two parent-repository patches.
+HYDRA pins the fork through the `third_party/CHIPSIM` submodule commit.
+The fork directly versions the HYDRA adapters and online Garnet/DMA extensions;
+cloning the pinned revision provides the complete integration source.
 
 Simulation entry points subclass `BaseSimulationBackend`; execution providers
 subclass `BaseExecutionBackend` and register through HYDRA's existing subclass
 factory pattern. Extend those interfaces instead of duplicating the serving
 scheduler. Service drivers live here; policy and model ownership stays in HYDRA.
 
-When publishing, include `.gitmodules`, the `third_party/CHIPSIM` gitlink
-(mode `160000`), and both patch files. Untracked edits inside a submodule are
-not included by committing the parent repository. Keep environments, binaries,
-and raw experiment outputs out of the source commit.
+Commit and push CHIPSIM changes to the fork first, then update and commit
+the `third_party/CHIPSIM` gitlink (mode `160000`) in HYDRA. The parent repository
+records a commit, not uncommitted submodule edits. Keep `.gitmodules` versioned
+and environments, binaries and raw experiment outputs outside source control.

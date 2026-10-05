@@ -34,6 +34,26 @@ class BaseBlockConfig(BaseFixedConfig):
     cache_store: bool = True
     parameter_count: int = 230_370_112
     type_name: str = "base-block-transformer"
+    memory_accounting_version: int = 1
+
+    @property
+    def execution_family(self):
+        """Legacy names remain compatible; new blocks declare a capability."""
+        if 'transformer' in self.type_name:
+            return 'attention'
+        if 'mamba' in self.type_name:
+            return 'recurrent'
+        raise ValueError(f"No execution family for {self.type_name}")
+
+    @property
+    def memory_group(self):
+        return {'attention': 'transformer', 'recurrent': 'mamba'}[self.execution_family]
+
+    def get_accelerators(self, stage):
+        from Sim.config import utils
+        families = {'attention': (utils.T_P, utils.T_D),
+                    'recurrent': (utils.M_P, utils.M_D)}
+        return families[self.execution_family][0 if stage == 'prefill' else 1]
     
     layers: Optional[List[str]] = field(
         default_factory=lambda: []
@@ -44,6 +64,24 @@ class BaseBlockConfig(BaseFixedConfig):
     )
 @dataclass
 class BaseModelConfig(BaseFixedConfig):
+    @classmethod
+    def create_from_name(cls, name):
+        # Import model extensions only after the legacy config module is loaded.
+        from Sim.config import modern_model_config
+        from Sim.config import operator_fixture_config
+        from Sim.config import kimi_model_config
+        from Sim.config import deepseek_model_config
+        return super().create_from_name(name)
+
+    def validate_execution(self, config):
+        """Optional model-specific restrictions checked before simulation."""
+
+    def validate_request_lengths(self, context_length, prefill_length, decode_length):
+        """Optional context contract; legacy models retain their original behavior."""
+
+    def validate_batch_lengths(self, lengths, batch_size):
+        """Optional batch-shape contract for a prepared token-length trace."""
+
     num_layers: int = 12
     num_q_heads: int = 12
     num_kv_heads: int = 12

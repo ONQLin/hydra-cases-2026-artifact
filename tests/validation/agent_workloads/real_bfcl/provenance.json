@@ -1,0 +1,28 @@
+{
+  "benchmark_revision": "BFCL v4, 2025-12-16 archive; exact evaluation-code commit is not recorded",
+  "source_model": "Qwen_Qwen3-8B-FC",
+  "source_model_id": "Qwen/Qwen3-8B",
+  "source_checkpoint_revision": null,
+  "tokenizer": "Qwen/Qwen3-8B; exact collection revision is not recorded",
+  "chat_template": "QwenFCHandler format; exact collection handler/template revision is not recorded",
+  "sampling": {
+    "status": "not recorded in result JSONL",
+    "temperature": null,
+    "max_tokens": null
+  },
+  "reasoning": "Nonempty reasoning_content is recorded; reported completion-token counts are replayed without adding or removing reasoning tokens.",
+  "archive_revision": "cadd76a8dc62984e7bf15ecaf358f070bae745cc",
+  "archive_date": "2025-12-16",
+  "source_url": "https://raw.githubusercontent.com/HuanzhiMao/BFCL-Result/cadd76a8dc62984e7bf15ecaf358f070bae745cc/2025-12-16/result/Qwen_Qwen3-8B-FC/multi_turn/BFCL_v4_multi_turn_base_result.json",
+  "source_sha256": "f9b54ce62db5069955faa602aa5dd1238db34c3829cdc2bef7f142e47c9851c5",
+  "selected_sha256": "57ed0a54e86badc32fd6eaf0d7cd74c5d6ba03dca8e1d5ed69babcd58361cc0c",
+  "selected_ids": [
+    "multi_turn_base_0",
+    "multi_turn_base_1"
+  ],
+  "selection": "First two numeric task IDs, complete sessions; not filtered by correctness or output length.",
+  "reference_model_revision": "b968826d9c46dd6066d109eabc6255188de91218",
+  "reference_handler_revision": "6ea57973c7a6097fd7c5915698c54c17c5b1b6c8",
+  "source_precision": "Not recorded. Reference local handler defaults to bfloat16; HYDRA uses its W8/A8/KV8 decoder performance contract.",
+  "license": "Apache-2.0, upstream archive LICENSE"
+}

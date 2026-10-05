@@ -57,6 +57,8 @@ class Request(BaseEntity):
         self._batch_id = batch_id
 
     def fill_request(self):
+        self._model_config.validate_request_lengths(
+            self._context_length, self._num_prefill_tokens, self._num_decode_tokens)
         # TODO: generalize this to support hybrid model (different blocks)
         # self._model_config.hybrid == False
         # prefill infers
@@ -65,6 +67,7 @@ class Request(BaseEntity):
             blocks = [
                 block(
                     context_length=self._num_prefill_tokens,
+                    is_prefill=self._model_config.hybrid_blocks[type_idx].memory_accounting_version >= 2,
                     block_config=self._model_config.hybrid_blocks[type_idx],
                     block_num=idx  # block_num starts from 1 for decode blocks
                 ) for idx, type_idx in enumerate(self._model_config.block_type_sequence)
@@ -96,6 +99,15 @@ class Request(BaseEntity):
     
     def has_prefill(self) -> bool:
         return "prefill" in self._infs
+
+    def on_completion(self, timestep):
+        """Notify workload extensions after execution resources have been released."""
+        self._completed = True
+        self._completed_at = timestep
+
+    def retry_request(self):
+        from copy import deepcopy
+        return deepcopy(self)
 
     def has_decode(self) -> bool:
         return "decode" in self._infs

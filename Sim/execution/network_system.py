@@ -37,4 +37,8 @@ class NetworkSystemSnapshot:
             'execution_contract': 'sequential kernel phases, overlapped compute/HBM/NoI, HYDRA bandwidth reservations',
             'traffic_contract': 'aggregate accelerator HBM bytes represented as HBM-to-compute bursts; inter-block HBM-to-HBM transfers explicit',
         }
+        if hasattr(graph, 'nodes_per_package'):
+            snapshot['nodes_per_package'] = graph.nodes_per_package
+            snapshot['package_count'] = graph.package_count
+            snapshot['traffic_contract'] += '; package crossings use the separate analytical fabric'
         return snapshot

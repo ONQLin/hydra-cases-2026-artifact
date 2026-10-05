@@ -40,6 +40,11 @@ Nemotron-H-4B, three archived designs each, with 5 simulated seconds per run,
 static batching/mapping and unpaced network injection. CHIPSIM/Garnet is the
 comparison reference.
 
+**Design ordering and trends agree.** Across these six cases, Analytic and
+Packet preserve CHIPSIM/Garnet's TP and TTFT ordering within each model. The
+sampled TP–TTFT tradeoff trends therefore agree, although the absolute metrics
+differ; the table below quantifies these deviations.
+
 | Network fidelity | Backend | TP MAPE | TTFT MAPE | Simulation speedup |
 |---|---|---:|---:|---:|
 | **Low** | HYDRA-Analytic | 12.71% | 0.52% | 3,737.57× |
@@ -62,6 +67,17 @@ every metric. [Source table and measurement scope](docs/multi_fidelity/README.md
 The layered illustration is inspired by [MFIT](https://arxiv.org/abs/2410.09188);
 see the [reference and scope](docs/multi_fidelity/README.md#multi-fidelity-reference).
 This optional validation workflow extends the paper's serving simulator.
+
+Experimental [multi-package inference](docs/multi_package/README.md) distributes
+one decoder across static layer stages with local HBM and an explicit analytical
+package fabric. The [validation record](tests/validation/multi_package/README.md)
+covers three-backend smoke and DeepSeek-V3 capacity across four ordinary packages.
+
+Experimental [agent workload replay](docs/agent_workloads/README.md) imports BFCL
+multi-turn result logs as dependent LLM calls and profiled host/external tools. The
+[integration guide](integrations/workloads/README.md) provides custom Tyro inputs,
+a [real Qwen3-8B replay](tests/validation/agent_workloads/real_bfcl/README.md),
+and small validation commands for all three backends.
 
 ## Environment Setup
 
@@ -91,6 +107,36 @@ The virtual environment only needs to be activated once per terminal session:
 source .venv/bin/activate
 ```
 
+## Workload Description
+
+HYDRA combines a model's operator topology with request traces or agent
+trajectories. Models and request sources use the existing subclass factories.
+
+### Models
+
+| Model | Implementation in HYDRA |
+|---|---|
+| LLaMA3-8B | Transformer blocks with analytical attention/FFN profiles and per-request KV storage. |
+| Mamba2-3B | Recurrent blocks with convolution/SSM profiles and fixed-size state per sequence. |
+| Nemotron-H-4B/56B, Zamba2-7B, Jamba-tiny/mini | Legacy hybrid baselines: configured sequences of attention and recurrent blocks, with block-specific compute and memory profiles. |
+| [Qwen3-8B](tests/validation/modern_models/README.md) | Explicit GQA and SwiGLU profiles, KV growth and prompt-sized activation accounting. |
+| [Qwen3.5-9B text](tests/validation/modern_models/README.md) | Hybrid Gated DeltaNet and gated GQA blocks; separate recurrent, convolution and KV state accounting. |
+| [Kimi Linear 48B-A3B](docs/workload_modernization/kimi/README.md) | Chunked/tiled KDA, MLA and colocated MoE with synthetic routing; explicit operator dependencies and state lifetimes. Includes a streaming MLA variant. |
+| [DeepSeek-V3](docs/workload_modernization/deepseek/README.md) | Streaming MLA with absorbed KV cache, dense/grouped MoE layers and synthetic routing; explicit memory-capacity checks. |
+
+Qwen, Kimi and DeepSeek support is experimental and models the decoder stack.
+MoE uses colocated experts.
+
+### Benchmarks and datasets
+
+| Benchmark / dataset | Replay in HYDRA |
+|---|---|
+| [Chat, arXiv, BWB, LongWriter](docs/workload_modernization/dataset_inventory.json) | CSV replay of stored input/output token lengths with configured arrival timing; usable with compatible model/context settings. |
+| [BFCL multi-turn trajectories](integrations/workloads/README.md) | Import archived result logs or custom normalized traces; release dependent LLM calls after prior calls, user delays and profiled host/external tool execution complete. Includes synthetic fixtures and pinned Qwen3-8B logs. |
+
+BFCL replays fixed trajectories for performance simulation. Detailed scope,
+assumptions and validation commands are linked in the tables. The [workload research report](docs/workload_modernization/README.md)
+covers additional architectures and benchmarks under consideration.
 
 ## Reproduce the Results
 
@@ -152,13 +198,14 @@ bash artifact/experiments/vi_f_markov_fast_dse/run.sh
 - `Sim/execution/`: shared execution contract and completion feedback.
 - `docs/multi_fidelity/`: architecture and curated accuracy/cost evidence.
 - `integrations/packet/`: C++ medium-fidelity network, C ABI binding, and validation guide.
-- `integrations/chipsim/`: CHIPSIM services, upstream patches, and validation guide.
+- `integrations/chipsim/`: CHIPSIM services and validation guide.
 - `third_party/CHIPSIM/`: upstream CHIPSIM submodule.
 - `analytic_profile/`: analytical compute and memory models plus hardware
   configuration files.
 - `dataset/`: ARXIV, BWB, Chat, and LongWriter request traces.
 - `Fast_Estimate/`: Roofline and Markov-based fast-DSE models.
-- `tests/`: unit tests and extension validation scripts.
+- [`tests/`](tests/README.md): unit tests and simulator validation.
+- [`tests/validation/`](tests/validation/README.md): validation scripts and generated demo inputs.
 - `artifact/experiments/`: section-level reproduction scripts.
 - `artifact/run_outputs/`: curated measurements and generated result tables.
 - `artifact/figures/`: reproduced PNG figures.

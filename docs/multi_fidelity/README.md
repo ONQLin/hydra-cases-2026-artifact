@@ -19,6 +19,10 @@ HYDRA compute profiles throughout; CHIPSIM's CMOS analytical and CIMLoop compute
 models are not enabled. The comparison measures network refinement and its
 effect on serving performance under a shared compute model.
 
+The optional [multi-package extension](../multi_package/README.md) retains these
+backends within each package and uses a shared analytical model between packages.
+The figures below are the original single-package experiments.
+
 Use Analytic for quick design evaluation, Packet to assess contention at lower
 simulation cost, and CHIPSIM for selected reference checks. The measured tradeoff
 below determines how much confidence to place in each approximation.

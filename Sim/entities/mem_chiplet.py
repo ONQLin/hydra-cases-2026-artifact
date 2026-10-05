@@ -59,4 +59,4 @@ class intermediate:
     name: str = field(default="", metadata={"help": "Name of the intermediate data."})
     #loc: int = field(default=0, metadata={"help": "Location ID of the data in the chiplet."})
     chip_id: int = field(default=-1, metadata={"help": "ID of the chiplet where the intermediate data is stored."})
-    req_id: int = field(default=-1, metadata={"help": "Request ID for tracking."})
+    req_id: int | str = field(default=-1, metadata={"help": "Request ID or retained-cache owner for tracking."})

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="650" viewBox="0 0 1200 650" role="img" aria-labelledby="title description">
   <title id="title">HYDRA: one serving setup, three network fidelity levels</title>
-  <desc id="description">HYDRA selects an analytic, aggregate packet, or CHIPSIM/Garnet network executor through its backend factory. HYDRA owns compute profiles, runtime and compute/network coordination. The CHIPSIM integration supplies the Garnet network, whose completion events return to HYDRA to produce throughput and TTFT.</desc>
+  <desc id="description">HYDRA selects an analytic, aggregate packet, or CHIPSIM/Garnet network executor through its backend factory. HYDRA owns hardware, workload, task mapping, batching, shared compute profiles and compute/network coordination. Network completion events return to the same serving runtime, which reports serving metrics such as throughput and TTFT alongside simulation cost.</desc>
   <defs>
     <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="#536477"/></marker>
     <style>
@@ -14,8 +14,8 @@
   <rect width="1200" height="650" rx="12" fill="white"/>
   <!-- Shared ownership and selection; the tiers are alternative executors. -->
   <rect x="100" y="28" width="1050" height="82" rx="10" fill="#F2F5F8" stroke="#CBD5DF"/>
-  <text x="625" y="59" text-anchor="middle" font-size="23" font-weight="bold">HYDRA owns the serving experiment</text>
-  <text x="625" y="87" text-anchor="middle" class="body">HW + workload + static batching / mapping + shared compute profiles</text>
+  <text x="625" y="59" text-anchor="middle" font-size="23" font-weight="bold">HYDRA owns the serving setup</text>
+  <text x="625" y="87" text-anchor="middle" class="body">HW + workload + task mapping / batching + shared compute profiles</text>
   <path class="wire" d="M625 110 V150 M250 150 H990 M250 150 V178 M620 150 V178 M990 150 V178"/>
   <rect x="428" y="127" width="384" height="28" fill="white"/>
   <text x="620" y="147" text-anchor="middle" class="body">Select a backend for a design point</text>
@@ -55,7 +55,7 @@
   <!-- High: a router inset with flits, virtual channels and credit return. -->
   <rect x="830" y="180" width="320" height="315" rx="12" fill="#F5F6F8" stroke="#252525" stroke-width="2"/>
   <text x="852" y="216" class="name">High fidelity</text>
-  <text x="852" y="246" class="body">CHIPSIM/Garnet · reference</text>
+  <text x="852" y="246" class="body">CHIPSIM/Garnet</text>
   <rect x="897" y="262" width="206" height="82" rx="6" fill="white" stroke="#84909E"/>
   <g fill="#536477">
     <rect x="909" y="274" width="10" height="12"/><rect x="923" y="274" width="10" height="12"/><rect x="937" y="274" width="10" height="12"/><rect x="951" y="274" width="10" height="12"/>
@@ -72,7 +72,7 @@
   <text x="852" y="389" class="body">Persistent Garnet network</text>
   <text x="852" y="414" class="body">Flits, VCs, buffer credits</text>
   <path d="M852 429 H1128" stroke="#D5D9E0"/>
-  <text x="852" y="454" class="small">Reference checks on demand</text>
+  <text x="852" y="454" class="small">Detailed validation on demand</text>
   <text x="852" y="478" class="small">chipsim_contended</text>
 
   <!-- Completions wake the same serving runtime, closing the loop. -->
@@ -81,6 +81,6 @@
   <rect x="416" y="518" width="408" height="26" fill="white"/>
   <text x="620" y="537" text-anchor="middle" class="body">Completion events wake HYDRA runtime</text>
   <rect x="210" y="568" width="820" height="52" rx="9" fill="#F2F5F8" stroke="#CBD5DF"/>
-  <text x="620" y="600" text-anchor="middle" class="body">Same metrics: TP / TTFT     |     Compare error and measured simulation cost</text>
-  <text x="620" y="641" text-anchor="middle" class="small">More network detail does not guarantee a smaller error for every serving metric.</text>
+  <text x="620" y="600" text-anchor="middle" class="body">Serving metrics (TP / TTFT)     |     Simulation cost (wall time)</text>
+  <text x="620" y="641" text-anchor="middle" class="small">Select network fidelity to balance detail and simulation cost.</text>
 </svg>

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "default": {
+    "kind": "external",
+    "service_s": 0.001,
+    "provenance": "Assumed 1 ms remote service, 100 us RTT and 1 GB/s effective payload BW; no shared NIC model",
+    "round_trip_s": 0.0001,
+    "bandwidth_gbps": 1.0
+  }
+}

@@ -24,7 +24,7 @@ class TraceRequestLengthGenerator(BaseRequestLengthGenerator):
         
         # scale prefill and decode tokens
         self.trace_df["num_prefill_tokens"] = self.trace_df["num_prefill_tokens"] * config.prefill_scale_factor
-        self.trace_df["context_length"] = self.trace_df["num_prefill_tokens"] * config.prefill_scale_factor
+        self.trace_df["context_length"] = self.trace_df["num_prefill_tokens"]
         self.trace_df["num_decode_tokens"] = self.trace_df["num_decode_tokens"] * config.decode_scale_factor
 
         if self.req_type == 1:
@@ -78,7 +78,7 @@ class TraceRequestLengthGenerator(BaseRequestLengthGenerator):
 
         self.next_request_idx = 0
 
-    def get_next_num_tokens(self) -> Tuple[float, float]:
+    def get_next_num_tokens(self) -> Tuple[float, float, float]:
         if self.next_request_idx >= len(self.trace_df):
             return None, None, None
 

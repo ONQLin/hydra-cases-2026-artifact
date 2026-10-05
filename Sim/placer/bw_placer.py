@@ -118,11 +118,11 @@ class BW_Placer(BasePlacer):
             Mem_params_mamba, Mem_states_mamba = 0, 0
             Mem_params_att, Mem_kv_att = 0, 0
             for block_type in model_config.block_type_sequence:
-                if "mamba" in model_config.hybrid_blocks[block_type].type_name.lower():
+                if model_config.hybrid_blocks[block_type].execution_family == 'recurrent':
                     N_M += 1
                     Mem_params_mamba += common.convert_param_mB(model_config.hybrid_blocks[block_type].parameter_count)
                     Mem_states_mamba += common.convert_param_mB(model_config.hybrid_blocks[block_type].states + model_config.hybrid_blocks[block_type].peak_intermed)
-                elif "transformer" in model_config.hybrid_blocks[block_type].type_name.lower():
+                elif model_config.hybrid_blocks[block_type].execution_family == 'attention':
                     N_A += 1
                     Mem_params_att += common.convert_param_mB(model_config.hybrid_blocks[block_type].parameter_count)
                     Mem_kv_att += common.convert_param_mB(model_config.hybrid_blocks[block_type].max_position_embeddings *
@@ -131,10 +131,10 @@ class BW_Placer(BasePlacer):
                     raise ValueError(f"Unknown block type {block_type} in hybrid model.")
             if N_M != model_config.num_M_blocks or N_A != model_config.num_A_blocks:
                 raise ValueError("Mismatch in number of Mamba/Attention blocks in hybrid model.")
-            Mem_params_mamba = Mem_params_mamba/model_config.num_M_blocks
-            Mem_states_mamba = Mem_states_mamba/model_config.num_M_blocks
-            Mem_params_att = Mem_params_att/model_config.num_A_blocks
-            Mem_kv_att = Mem_kv_att/model_config.num_A_blocks
+            Mem_params_mamba = Mem_params_mamba/N_M if N_M else 0
+            Mem_states_mamba = Mem_states_mamba/N_M if N_M else 0
+            Mem_params_att = Mem_params_att/N_A if N_A else 0
+            Mem_kv_att = Mem_kv_att/N_A if N_A else 0
             
         # For pure-Mamba models, BW clustering tends to over-pack compute chiplets
         # near HBM edges. Use RR-style compute spreading while keeping HBM placement.

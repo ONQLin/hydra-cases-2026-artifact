@@ -48,15 +48,11 @@ class mem_sys:
 
     @staticmethod
     def get_global_index_map(sequence: list[int], hybrid_blocks: list[BaseBlockConfig]) -> dict[str, list[int]]:
-        """Maps block type ID (0 or 1) to a list of global layer indices."""
+        """Group global layer indices by attention/recurrent placement capability."""
         global_index_map = {'mamba': [], 'transformer': []}
         for global_idx, block_type_id in enumerate(sequence):
-            # We assume block_type_id is 0 or 1 here
-            for key in global_index_map.keys():
-                if key in hybrid_blocks[block_type_id].type_name.lower():
-                    global_index_map[key].append(global_idx)
-                    break
-            # Handle cases where hybrid_blocks might have more than two types if necessary
+            group = hybrid_blocks[block_type_id].memory_group
+            global_index_map[group].append(global_idx)
         return global_index_map
     
     def load_model(self, label: str, mod_config: BaseModelConfig, group_HBM_M: list, group_HBM_A: list):
@@ -77,8 +73,8 @@ class mem_sys:
         global_index_map = mem_sys.get_global_index_map(mod_config.block_type_sequence, mod_config.hybrid_blocks)
         group_keys = list(global_index_map.keys())
         for group_idx, group in enumerate([group_HBM_M, group_HBM_A]): # Just two groups for Mamba(0) and Attention(1)
-            if len(group) == 0 and mod_config.hybrid == True:
-                raise ValueError("No memory chiplets assigned for one of the block groups in hybrid model.")
+            if not group and global_index_map[group_keys[group_idx]]:
+                raise ValueError("No memory chiplets assigned for a populated block group.")
             if len(group) == 0:
                 continue
             
@@ -110,6 +106,8 @@ class mem_sys:
                     for layer_block_i in range(layers_to_assign):
                         layer_index = layer_offset + layer_block_i
                         global_layer_index = val[layer_index]
+                        if chiplet.inuse_budget + mem_req_per_layer > chiplet.dram_budget:
+                            raise MemoryError(f'Block {global_layer_index} weights exceed HBM {chiplet.chiplet_id} capacity.')
                         chiplet.inuse_budget += mem_req_per_layer
                         chiplet._current_allocated += mem_req_per_layer
                         chiplet.content_params['weights'] = [] if 'weights' not in chiplet.content_params else chiplet.content_params['weights']
@@ -284,8 +282,8 @@ class mem_sys:
         mem_chiplets_mapped = []
         for mem_chiplet_inst in self._mem_chiplets:
             assert isinstance(mem_chiplet_inst, mem_chiplet), "mem_chiplet_inst is not an instance of mem_chiplet."
-            for params in mem_chiplet_inst.content_params['weights']:
-                if block_name in params.name:
+            for params in mem_chiplet_inst.content_params.get('weights', []):
+                if params.name == f'{block_name} weights':
                     mem_chiplets_mapped.append(mem_chiplet_inst)
 
         if not mem_chiplets_mapped:
@@ -304,8 +302,8 @@ class mem_sys:
         check_flag = False
         for mem_chiplet_inst in self._mem_chiplets:
             assert isinstance(mem_chiplet_inst, mem_chiplet), "mem_chiplet_inst is not an instance of mem_chiplet."
-            for params in mem_chiplet_inst.content_params['weights']:
-                if block_name in params.name:
+            for params in mem_chiplet_inst.content_params.get('weights', []):
+                if params.name == f'{block_name} weights':
                     if mem_chiplet_inst.dram_budget - mem_chiplet_inst._current_allocated < allocated_memory:
                         return -1
                     else:
@@ -338,8 +336,8 @@ class mem_sys:
         
         for mem_chiplet_inst in self._mem_chiplets:
             assert isinstance(mem_chiplet_inst, mem_chiplet), "mem_chiplet_inst is not an instance of mem_chiplet."
-            for params in mem_chiplet_inst.content_params['weights']:
-                if block_name in params.name:
+            for params in mem_chiplet_inst.content_params.get('weights', []):
+                if params.name == f'{block_name} weights':
                     mem_chiplet_inst._current_allocated += allocated_memory
                     return
         raise ValueError(f"Block {block_name} not found in any memory chiplet.")
@@ -364,8 +362,8 @@ class mem_sys:
         
         for mem_chiplet_inst in self._mem_chiplets:
             assert isinstance(mem_chiplet_inst, mem_chiplet), "mem_chiplet_inst is not an instance of mem_chiplet."
-            for params in mem_chiplet_inst.content_params['weights']:
-                if block_name in params.name:
+            for params in mem_chiplet_inst.content_params.get('weights', []):
+                if params.name == f'{block_name} weights':
                     mem_chiplet_inst._current_allocated -= allocated_memory
                     if mem_chiplet_inst._current_allocated < 0:
                         raise ValueError("Allocated memory on chiplet went below zero.")

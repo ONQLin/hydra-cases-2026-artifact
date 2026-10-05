@@ -91,6 +91,15 @@ class BaseAccModel(ABC):
         time_ns = mac_ops / macs_per_ns
         return cls.ns_to_cycles(time_ns)
 
+    @classmethod
+    def profile_kernel(cls, kernel_name, **kwargs):
+        """Dispatch explicit modern operators while preserving legacy profiles."""
+        from analytic_profile.modern import BaseOperatorProfile
+        profile = BaseOperatorProfile.find(kernel_name)
+        if profile is not None:
+            return profile().profile(**kwargs)
+        return cls.get_kernel(kernel_name, **kwargs)
+
     @abstractmethod
     def get_kernel(cls, kernel_name: str, *args, **kwargs) -> Any:
         raise NotImplementedError

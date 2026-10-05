@@ -7,12 +7,13 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 import re
-import time
 import sys
+import time
 from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
+
 from tests.validation.chipsim_validation.run_comparison import ParetoComparison
 
 
@@ -47,6 +48,12 @@ class CheckpointRun:
         for name in ('system_snapshot.json', 'effective_workload.csv'):
             if (self.run_dir / name).read_bytes() != (other.run_dir / name).read_bytes():
                 raise ValueError(f'Backends disagree on {name}: {self.directory.parent.name}')
+        # Identical token rows can still hide different session arrivals or
+        # external waits. Compare the normalized dependency trace when present.
+        if self.read('effective_agent_workload.json') != other.read('effective_agent_workload.json'):
+            raise ValueError('Backends disagree on effective_agent_workload.json.')
+        if self.read('effective_tool_config.json') != other.read('effective_tool_config.json'):
+            raise ValueError('Backends disagree on effective_tool_config.json.')
         # Placement and token lengths alone cannot detect different arrival
         # intervals, batch policies, seeds, or accelerator configurations.
         a, b = self.read('config.json'), other.read('config.json')
@@ -54,6 +61,8 @@ class CheckpointRun:
             return  # Legacy fixtures may contain only the original snapshots.
         if a is None or b is None:
             raise ValueError('One run is missing its effective configuration.')
+        if a.get('package_config') != b.get('package_config'):
+            raise ValueError('Backends disagree on package_config.')
         for key in ('seed', 'cluster_config', 'arch_config', 'chips_config',
                     'placmt_config', 'workload_config', 'mapping_config'):
             left, right = (json.dumps(cfg[key], sort_keys=True) for cfg in (a, b))

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "cpu": {
+    "workers": 1,
+    "memory_bytes": 67108864,
+    "target_machine": "Hypothetical host CPU, one serial worker; no measured calibration"
+  },
+  "default": {
+    "kind": "cpu_profile",
+    "service_s": 0.001,
+    "provenance": "Assumed 1 ms per executed benchmark tool, 1 MiB workspace; sensitivity baseline, not measured BFCL CPU time",
+    "round_trip_s": 1e-05,
+    "bandwidth_gbps": 1.0,
+    "workspace_bytes": 1048576
+  }
+}

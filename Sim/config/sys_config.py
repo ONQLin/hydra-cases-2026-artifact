@@ -8,6 +8,8 @@ import networkx as nx
 import Sim.config.utils as utils
 from Sim.entities.chips_network import chip_graph
 from Sim.config.model_config import BaseModelConfig
+from Sim.config.package_config import PackageConfig
+from Sim.config.agent_config import AgentTraceConfig
 from Sim.config.utils import dataclass_to_dict, chiplets_lib
 from Sim.scheduler import BaseReqScheduler
 from Sim.placer import BasePlacer
@@ -97,9 +99,9 @@ class BaseChipletPlacerConfig(BasePolyConfig):
         metadata={"help": "Dictionary of chiplet types and their areas."},
     )
     
-    chiplets_mapping: List[List[int]] = field(
-        default_factory=lambda: [[0] * ArchConfig.intp_height for _ in range(ArchConfig.intp_width)],
-        metadata={"help": "Mapping of chiplets to the interposer (2D list, converted to ndarray at runtime)."},
+    chiplets_mapping: Optional[List[List[int]]] = field(
+        default=None,
+        metadata={"help": "Initial chiplet types; omitted uniform grids use zeros with the configured dimensions."},
     )
     
     two_d_grid: bool = field(
@@ -145,6 +147,14 @@ class BaseChipletPlacerConfig(BasePolyConfig):
     )
 
     def __post_init__(self):
+        if self.two_d_grid:
+            if (self.int_width < 1 or self.int_height < 1
+                    or self.num_nodes != self.int_width*self.int_height):
+                raise ValueError("Uniform-grid dimensions must match the positive node count.")
+            if self.chiplets_mapping is None:
+                self.chiplets_mapping = np.zeros((self.int_width,self.int_height),dtype=int)
+            elif np.shape(self.chiplets_mapping) != (self.int_width,self.int_height):
+                raise ValueError("Initial chiplet mapping must match the uniform-grid dimensions.")
         self.chiplets_mapping = np.array(self.chiplets_mapping)
 
         csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), f'../../analytic_profile/{self.placement_trace_file}')
@@ -210,6 +220,15 @@ class StaticRequestIntervalGeneratorConfig(BaseRequestIntervalGeneratorConfig):
 
 @dataclass
 class TraceRequestGeneratorConfig(BaseRequestGeneratorConfig):
+    agent_config: AgentTraceConfig = field(default_factory=AgentTraceConfig)
+    generator: str = field(
+        default='trace',
+        metadata={'help': 'Request source factory: trace or agent.'},
+    )
+    agent_trace_file: str = field(
+        default='',
+        metadata={'help': 'Agent trace or raw benchmark log; agent_config selects its format.'},
+    )
     num_requests: Optional[int] = field(
         default=10000,
         metadata={"help": "Number of requests for Trace Request Generator."},
@@ -560,6 +579,10 @@ class ChipsimConfig:
 
 @dataclass
 class HPSim_Config(ABC):
+    package_config: PackageConfig = field(
+        default_factory=PackageConfig,
+        metadata={"help": "Package count, static layer partition and effective inter-package fabric."},
+    )
     simulator_backend: str = field(
         default="hydra_sim",
         metadata={"help": "HYDRA-Analytic (hydra_sim), HYDRA-Packet (hydra_packet), CHIPSIM (chipsim_contended); legacy chipsim/chipsim_runtime also available."},
