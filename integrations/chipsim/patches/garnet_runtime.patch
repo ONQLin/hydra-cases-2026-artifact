@@ -1,0 +1,525 @@
+diff --git a/integrations/gem5/configs/example/garnet_synth_traffic.py b/integrations/gem5/configs/example/garnet_synth_traffic.py
+index a497716..0fb633c 100644
+--- a/integrations/gem5/configs/example/garnet_synth_traffic.py
++++ b/integrations/gem5/configs/example/garnet_synth_traffic.py
+@@ -46,6 +46,10 @@ config_root = os.path.dirname(config_path)
+ m5_root = os.path.dirname(config_root)
+ 
+ parser = argparse.ArgumentParser()
++parser.add_argument('--hydra-control-fd', type=int, default=None)
++parser.add_argument('--hydra-dma-burst-bytes', type=int, default=0)
++parser.add_argument('--hydra-hbm-bandwidths', default='[]')
++parser.add_argument('--hydra-hbm-access-ticks', type=int, default=0)
+ Options.addNoISAOptions(parser)
+ 
+ parser.add_argument(
+@@ -210,10 +214,54 @@ root.system.mem_mode = "timing"
+ # Not much point in this being higher than the L1 latency
+ m5.ticks.setGlobalFrequency("1ps")
+ 
++if args.hydra_control_fd is not None:
++    import json
++    system.ruby.network.hydra_online = True
++    system.ruby.network.hydra_dma_burst_bytes = args.hydra_dma_burst_bytes
++    system.ruby.network.hydra_hbm_bandwidths = json.loads(args.hydra_hbm_bandwidths)
++    system.ruby.network.hydra_hbm_access_ticks = args.hydra_hbm_access_ticks
++
+ # instantiate configuration
+ m5.instantiate()
+ 
+ # simulate until program terminates
+-exit_event = m5.simulate(args.abs_max_tick)
+-
+-print("Exiting @ tick", m5.curTick(), "because", exit_event.getCause())
++if args.hydra_control_fd is None:
++    exit_event = m5.simulate(args.abs_max_tick)
++    print("Exiting @ tick", m5.curTick(), "because", exit_event.getCause())
++else:
++    import json
++    import socket
++
++    class HydraNetworkController:
++        """Conservative online control without resetting the network state."""
++
++        def run(self, descriptor):
++            network = system.ruby.network
++            with socket.socket(fileno=descriptor) as connection:
++                with connection.makefile('rw') as stream:
++                    stream.write(json.dumps({'ready': True}) + '\n')
++                    stream.flush()
++                    for line in stream:
++                        request = json.loads(line)
++                        if request['kind'] == 'close':
++                            m5.stats.dump()
++                            break
++                        if request['kind'] == 'submit':
++                            network.submitHydraTransfer(request['flow_id'], request['source'],
++                                                        request['destination'], request['flits'])
++                        elif request['kind'] == 'advance':
++                            target = request['target_tick']
++                            if target < m5.curTick():
++                                raise ValueError('HYDRA attempted to reverse Garnet time.')
++                            if target > m5.curTick():
++                                event = m5.simulate(target - m5.curTick())
++                                if event.getCause() not in ('simulate() limit reached', 'HYDRA transfer completed'):
++                                    raise RuntimeError(event.getCause())
++                        else:
++                            raise ValueError('Unknown HYDRA control request.')
++                        result = {'tick': int(m5.curTick()),
++                                  'completed': list(network.takeHydraCompletions())}
++                        stream.write(json.dumps(result) + '\n')
++                        stream.flush()
++
++    HydraNetworkController().run(args.hydra_control_fd)
+diff --git a/integrations/gem5/configs/network/Network.py b/integrations/gem5/configs/network/Network.py
+index 4fe9f45..a9ddd90 100644
+--- a/integrations/gem5/configs/network/Network.py
++++ b/integrations/gem5/configs/network/Network.py
+@@ -190,6 +190,24 @@ def init_network(options, network, InterfaceClass):
+         network.trace_enable  = options.network_trace_enable
+         network.trace_file = options.network_trace_file
+         network.trace_max_packets = options.network_trace_max_packets
++        # Finite compressed traces allow exact, sparse statistic registration.
++        # Keep legacy registration for live (tail -f) traces.
++        if options.network_trace_enable and options.network_trace_file.endswith(".gz"):
++            import gzip
++            phase_ids = set()
++            with gzip.open(options.network_trace_file, "rt") as stream:
++                for line in stream:
++                    fields = line.split()
++                    if not fields or fields[0].startswith("#"):
++                        continue
++                    if len(fields) < 7:
++                        raise ValueError("Expected at least seven fields in a Garnet trace.")
++                    phase = tuple(int(fields[i]) if i < len(fields) else 0
++                                  for i in range(7, 10))
++                    if min(phase) < 0:
++                        raise ValueError("Garnet trace phase IDs must be nonnegative.")
++                    phase_ids.add(phase)
++            network.trace_phase_ids = [value for phase in sorted(phase_ids) for value in phase]
+ 
+         print(network.trace_file)
+ 
+diff --git a/integrations/gem5/src/mem/ruby/network/garnet/GarnetNetwork.cc b/integrations/gem5/src/mem/ruby/network/garnet/GarnetNetwork.cc
+index 6f3d5ac..4b37bbe 100644
+--- a/integrations/gem5/src/mem/ruby/network/garnet/GarnetNetwork.cc
++++ b/integrations/gem5/src/mem/ruby/network/garnet/GarnetNetwork.cc
+@@ -33,6 +33,7 @@
+ 
+ #include <cassert>
+ #include <cstring>
++#include <cmath>
+ #include <stdio.h>
+ #include <unistd.h>
+ #include <map>
+@@ -86,6 +87,11 @@ GarnetNetwork::GarnetNetwork(const Params &p)
+     m_trace_enable = p.trace_enable;
+     m_trace_filename = p.trace_file;
+     m_trace_max_packets = p.trace_max_packets;
++    m_hydra_online = p.hydra_online;
++    m_hydra_dma_burst_bytes = p.hydra_dma_burst_bytes;
++    m_hydra_hbm_bandwidths = p.hydra_hbm_bandwidths;
++    m_hydra_hbm_access_ticks = p.hydra_hbm_access_ticks;
++    end_simulation = false;
+ 
+     m_vnet_type.resize(m_virtual_networks);
+ 
+@@ -96,6 +102,7 @@ GarnetNetwork::GarnetNetwork(const Params &p)
+             m_vnet_type[i] = CTRL_VNET_; // carries only ctrl packets
+     }
+ 
++    if (!m_hydra_online) {
+     const char *trace_filename; //[100];
+     trace_filename = m_trace_filename.c_str();
+     //strcpy(trace_filename, m_trace_filename);
+@@ -151,6 +158,7 @@ GarnetNetwork::GarnetNetwork(const Params &p)
+         }
+     }
+ */
++    }
+     trace_num_packets_injected = 0;
+     trace_num_flits_injected = 0;
+     trace_num_flits_received = 0;
+@@ -200,7 +208,8 @@ GarnetNetwork::GarnetNetwork(const Params &p)
+     }
+     */
+ 
+-    scheduleWakeupAbsolute(curCycle() + Cycles(1));
++    if (!m_hydra_online)
++        scheduleWakeupAbsolute(curCycle() + Cycles(1));
+ 
+     // record the routers
+     for (std::vector<BasicRouter*>::const_iterator i =  p.routers.begin();
+@@ -220,10 +229,118 @@ GarnetNetwork::GarnetNetwork(const Params &p)
+         ni->init_net_ptr(this);
+     }
+ 
++    if (m_hydra_dma_burst_bytes) {
++        fatal_if(!m_hydra_online || m_hydra_hbm_bandwidths.size() != m_routers.size(),
++                 "DMA pacing requires per-router HBM bandwidths and online mode");
++        fatal_if(m_hydra_dma_burst_bytes < m_ni_flit_size,
++                 "DMA burst must hold at least one network flit");
++        m_hydra_dma_queues.resize(m_routers.size());
++        for (int source = 0; source < m_routers.size(); ++source) {
++            m_hydra_dma_events.emplace_back(new EventFunctionWrapper(
++                [this, source] { issueHydraDma(source); }, name() + ".hydra_dma"));
++        }
++    }
++
+     // Print Garnet version
+     inform("Garnet version %s\n", garnetVersion);
+ }
+ 
++void
++GarnetNetwork::submitHydraTransfer(int id, int source, int destination, int flits)
++{
++    fatal_if(!m_hydra_online || id < 0 || flits <= 0,
++             "Invalid online HYDRA transfer");
++    const int routers = m_routers.size();
++    fatal_if(source < 0 || source >= routers || destination < 0 ||
++             destination >= routers || m_hydra_remaining.count(id),
++             "Invalid HYDRA endpoints or duplicate active transfer ID");
++    NetworkTraceRecord record{};
++    record.valid = true;
++    record.time = curCycle();
++    record.src_id = source;
++    record.src_router_id = source;
++    record.dest_id = destination + routers;
++    record.dest_router_id = destination;
++    record.vnet = 0;
++    record.num_flits = flits;
++    record.network_idx = 0;
++    record.input_idx = 0;
++    record.phase_id = id;
++    m_hydra_remaining[id] = flits;
++    if (m_hydra_dma_burst_bytes) {
++        fatal_if(m_hydra_hbm_bandwidths[source] <= 0,
++                 "DMA source has no physical HBM bandwidth");
++        m_hydra_dma_queues[source].push_back({record, curTick() + m_hydra_hbm_access_ticks});
++        scheduleHydraDma(source);
++    } else {
++        m_nis[source]->enqueueTracePacket(record);
++    }
++}
++
++void
++GarnetNetwork::scheduleHydraDma(int source)
++{
++    auto &queue = m_hydra_dma_queues[source];
++    auto &event = *m_hydra_dma_events[source];
++    if (queue.empty() || event.scheduled())
++        return;
++    // Round-robin eligible flows; do not idle behind a not-yet-ready flow.
++    auto next = std::find_if(queue.begin(), queue.end(),
++                            [](const HydraDmaFlow &flow) { return flow.ready <= curTick(); });
++    if (next == queue.end()) {
++        next = std::min_element(queue.begin(), queue.end(),
++             [](const HydraDmaFlow &a, const HydraDmaFlow &b) { return a.ready < b.ready; });
++    }
++    std::rotate(queue.begin(), next, queue.end());
++    const int flits = std::min(queue.front().record.num_flits,
++                              int(m_hydra_dma_burst_bytes / m_ni_flit_size));
++    const Tick service = std::max<Tick>(1, std::ceil(
++        double(flits) * m_ni_flit_size * 1e12 / m_hydra_hbm_bandwidths[source]));
++    schedule(event, std::max(curTick(), queue.front().ready) + service);
++}
++
++void
++GarnetNetwork::issueHydraDma(int source)
++{
++    auto &queue = m_hydra_dma_queues[source];
++    auto flow = queue.front();
++    queue.pop_front();
++    auto burst = flow.record;
++    burst.time = curCycle();
++    burst.num_flits = std::min(flow.record.num_flits,
++                              int(m_hydra_dma_burst_bytes / m_ni_flit_size));
++    m_nis[source]->enqueueTracePacket(burst);
++    flow.record.num_flits -= burst.num_flits;
++    if (flow.record.num_flits)
++        queue.push_back(flow);
++    scheduleHydraDma(source);
++}
++
++void
++GarnetNetwork::receiveHydraFlit(int id)
++{
++    auto entry = m_hydra_remaining.find(id);
++    fatal_if(entry == m_hydra_remaining.end() || entry->second == 0,
++             "Unexpected HYDRA flit completion");
++    if (--entry->second == 0) {
++        const bool first_completion = m_hydra_completions.empty();
++        m_hydra_completions.push_back(id);
++        m_hydra_completions.push_back(curTick());
++        m_hydra_remaining.erase(entry);
++        // Stop at the completion, preserving all other packets and credits.
++        if (first_completion)
++            exitSimLoop("HYDRA transfer completed");
++    }
++}
++
++std::vector<uint64_t>
++GarnetNetwork::takeHydraCompletions()
++{
++    std::vector<uint64_t> result;
++    result.swap(m_hydra_completions);
++    return result;
++}
++
+ bool 
+ GarnetNetwork::endsWith(const char* str, const char* suffix) {
+     size_t len1 = std::strlen(str);
+@@ -380,6 +497,8 @@ void
+ GarnetNetwork::increment_trace_flits_received()
+ {
+     trace_num_flits_received++;
++    if (m_hydra_online)
++        return;
+ 
+     DPRINTF(NetworkTrace, "Num flits injected = %d, Num flits received = %d\n",
+         trace_num_flits_injected, trace_num_flits_received);
+@@ -747,25 +866,29 @@ GarnetNetwork::regStats()
+     m_packet_max_latency
+         .name(name() + ".main_layer_latency");
+ 
+-    // Pre-register layer latency stats for all possible combinations
+-    // These limits should cover most use cases while keeping memory reasonable
+-    // If you need more, increase these constants
+-    const int MAX_NETWORKS = 20;  // Maximum number of networks to track
+-    const int MAX_INPUTS = 20;    // Maximum number of inputs per network
+-    const int MAX_PHASES = 500;   // Maximum number of phases per network
+-    
+-    for (int net = 0; net < MAX_NETWORKS; net++) {
+-        for (int inp = 0; inp < MAX_INPUTS; inp++) {
+-            for (int phase = 0; phase < MAX_PHASES; phase++) {
+-                auto key = std::make_tuple(net, inp, phase);
+-                std::string stat_name = name() + ".phase_latency_" + 
+-                                        std::to_string(net) + "_" +
+-                                        std::to_string(inp) + "_" +
+-                                        std::to_string(phase);
+-                
+-                m_phase_latency_stats[key] = new statistics::Scalar();
+-                m_phase_latency_stats[key]->name(stat_name);
+-                m_phase_latency_stats[key]->flags(statistics::nozero);
++    // Register only phases present in a finite trace. Live traces retain the
++    // legacy bounds because future phase IDs are not known at initialization.
++    const auto register_phase = [this](int net, int inp, int phase) {
++        auto key = std::make_tuple(net, inp, phase);
++        auto *stat = new statistics::Scalar();
++        stat->name(name() + ".phase_latency_" + std::to_string(net) + "_" +
++                   std::to_string(inp) + "_" + std::to_string(phase));
++        stat->flags(statistics::nozero);
++        m_phase_latency_stats[key] = stat;
++    };
++    const auto &phase_ids = static_cast<const Params &>(params()).trace_phase_ids;
++    fatal_if(phase_ids.size() % 3 != 0,
++             "Trace phase IDs must contain network/input/phase triples");
++    if (!phase_ids.empty()) {
++        for (size_t i = 0; i < phase_ids.size(); i += 3) {
++            register_phase(phase_ids[i], phase_ids[i + 1], phase_ids[i + 2]);
++        }
++    } else if (!m_hydra_online) {
++        for (int net = 0; net < 20; ++net) {
++            for (int inp = 0; inp < 20; ++inp) {
++                for (int phase = 0; phase < 500; ++phase) {
++                    register_phase(net, inp, phase);
++                }
+             }
+         }
+     }
+diff --git a/integrations/gem5/src/mem/ruby/network/garnet/GarnetNetwork.hh b/integrations/gem5/src/mem/ruby/network/garnet/GarnetNetwork.hh
+index dbc8902..b0c65ee 100644
+--- a/integrations/gem5/src/mem/ruby/network/garnet/GarnetNetwork.hh
++++ b/integrations/gem5/src/mem/ruby/network/garnet/GarnetNetwork.hh
+@@ -34,6 +34,8 @@
+ 
+ #include <iostream>
+ #include <vector>
++#include <deque>
++#include <memory>
+ 
+ #include "base/logging.hh"
+ #include "mem/ruby/common/Consumer.hh"
+@@ -105,6 +107,10 @@ class GarnetNetwork : public Network, public Consumer
+     FaultModel* fault_model;
+ 
+     bool isTraceEnabled() const { return m_trace_enable; }
++    bool isHydraOnline() const { return m_hydra_online; }
++    void submitHydraTransfer(int id, int source, int destination, int flits);
++    void receiveHydraFlit(int id);
++    std::vector<uint64_t> takeHydraCompletions();
+     std::string getTraceFilename() const { return m_trace_filename; }
+ 
+     void increment_trace_flits_received();
+@@ -217,7 +223,7 @@ class GarnetNetwork : public Network, public Consumer
+     }
+ 
+     void update_traffic_distribution(RouteInfo route);
+-    int getNextPacketID() { return m_next_packet_id++; }
++    uint64_t getNextPacketID() { return m_next_packet_id++; }
+     bool end_simulation;
+ 
+   protected:
+@@ -231,6 +237,20 @@ class GarnetNetwork : public Network, public Consumer
+     int m_routing_algorithm;
+     bool m_enable_fault_model;
+     bool m_trace_enable;
++    bool m_hydra_online;
++    std::map<int, uint64_t> m_hydra_remaining;
++    std::vector<uint64_t> m_hydra_completions;
++    struct HydraDmaFlow {
++        NetworkTraceRecord record;
++        Tick ready;
++    };
++    std::vector<std::deque<HydraDmaFlow>> m_hydra_dma_queues;
++    std::vector<std::unique_ptr<EventFunctionWrapper>> m_hydra_dma_events;
++    std::vector<double> m_hydra_hbm_bandwidths;
++    uint32_t m_hydra_dma_burst_bytes;
++    Tick m_hydra_hbm_access_ticks;
++    void scheduleHydraDma(int source);
++    void issueHydraDma(int source);
+     std::string m_trace_filename;
+     int m_trace_max_packets;
+ 
+@@ -284,9 +304,9 @@ class GarnetNetwork : public Network, public Consumer
+     // Trace File
+     FILE * tracefile;
+     NetworkTraceRecord trace_next_packet;
+-    int trace_num_packets_injected; // number of packets injected so far
+-    int trace_num_flits_injected;
+-    int trace_num_flits_received; // number of trace flits received
++    uint64_t trace_num_packets_injected; // number of packets injected so far
++    uint64_t trace_num_flits_injected;
++    uint64_t trace_num_flits_received; // number of trace flits received
+     int trace_start_time; // time-stamp of first packet in trace
+ 
+   private:
+@@ -299,7 +319,7 @@ class GarnetNetwork : public Network, public Consumer
+     std::vector<NetworkBridge *> m_networkbridges; // All network bridges
+     std::vector<CreditLink *> m_creditlinks; // All credit links in the network
+     std::vector<NetworkInterface *> m_nis;   // All NI's in Network
+-    int m_next_packet_id; // static vairable for packet id allocation
++    uint64_t m_next_packet_id;
+ };
+ 
+ inline std::ostream&
+diff --git a/integrations/gem5/src/mem/ruby/network/garnet/GarnetNetwork.py b/integrations/gem5/src/mem/ruby/network/garnet/GarnetNetwork.py
+index d2445d2..03bdbea 100644
+--- a/integrations/gem5/src/mem/ruby/network/garnet/GarnetNetwork.py
++++ b/integrations/gem5/src/mem/ruby/network/garnet/GarnetNetwork.py
+@@ -34,6 +34,7 @@ from m5.objects.ClockedObject import ClockedObject
+ from m5.objects.Network import RubyNetwork
+ from m5.params import *
+ from m5.proxy import *
++from m5.SimObject import PyBindMethod
+ 
+ 
+ class GarnetNetwork(RubyNetwork):
+@@ -52,6 +53,12 @@ class GarnetNetwork(RubyNetwork):
+     trace_enable = Param.Bool(False, "enable trace simulation");
+     trace_file  = Param.String(" ", "network trace input file");
+     trace_max_packets = Param.Int(-1, "maximum trace packets to inject");
++    trace_phase_ids = VectorParam.Int([], "Flattened network/input/phase triples in a finite trace")
++    hydra_online = Param.Bool(False, "Accept online HYDRA transfers and return completions")
++    hydra_dma_burst_bytes = Param.UInt32(0, "HBM DMA burst bytes; zero disables pacing")
++    hydra_hbm_bandwidths = VectorParam.Float([], "HBM source bandwidth in bytes/second by router ID")
++    hydra_hbm_access_ticks = Param.Tick(0, "HBM access delay before a transfer becomes eligible")
++    cxx_exports = [PyBindMethod("submitHydraTransfer"), PyBindMethod("takeHydraCompletions")]
+     garnet_deadlock_threshold = Param.UInt32(
+         50000, "network-level deadlock threshold"
+     )
+diff --git a/integrations/gem5/src/mem/ruby/network/garnet/NetworkInterface.cc b/integrations/gem5/src/mem/ruby/network/garnet/NetworkInterface.cc
+index 5d91ee1..0e416b4 100644
+--- a/integrations/gem5/src/mem/ruby/network/garnet/NetworkInterface.cc
++++ b/integrations/gem5/src/mem/ruby/network/garnet/NetworkInterface.cc
+@@ -158,6 +158,8 @@ NetworkInterface::incrementStats(flit *t_flit)
+ 
+     RouteInfo route = t_flit->get_route();
+     Tick current_tick = curTick();
++    if (m_net_ptr->isHydraOnline())
++        m_net_ptr->receiveHydraFlit(route.phase_id);
+ 
+ 
+     // Latency
+@@ -176,7 +178,8 @@ NetworkInterface::incrementStats(flit *t_flit)
+         
+         // Track per-phase latency for all packets
+         // For HEAD_TAIL (single flit) or TAIL with last_flit flag
+-        if (t_flit->get_type() == HEAD_TAIL_ || route.last_flit) {
++        if (!m_net_ptr->isHydraOnline() &&
++            (t_flit->get_type() == HEAD_TAIL_ || route.last_flit)) {
+             // Calculate actual latency (network_delay + queueing_delay)
+             Tick total_latency = network_delay + queueing_delay;
+             m_net_ptr->add_phase_latency(route.network_idx, route.input_idx, 
+@@ -376,7 +379,8 @@ NetworkInterface::transferTraceRecordsToInjectionQueue()
+     std::vector<NetDest> net_dests;
+     std::vector<RouteInfo> routes;
+     MsgPtr msg_ptr = nullptr;
+-    OutputPort *oPort = getOutportForVnet(m_trace_record_queue.front().vnet);
++    // The queue may be empty after collecting this timestamp's records.
++    OutputPort *oPort = getOutportForVnet(same_time_records.front().vnet);
+     assert(oPort);
+ 
+ 
+@@ -441,7 +445,7 @@ NetworkInterface::transferTraceRecordsToInjectionQueue()
+                 routes[r].last_flit = (i == same_time_records[r].num_flits - 1);
+ 
+                 // Get a unique packet ID for each flit
+-                int packet_id = m_net_ptr->getNextPacketID();
++                auto packet_id = m_net_ptr->getNextPacketID();
+                 
+                 // Create a single-flit packet (num_flits = 1)
+                 // This ensures the flit type is HEAD_TAIL_
+@@ -616,7 +620,7 @@ NetworkInterface::flitisizeMessage(MsgPtr msg_ptr, int vnet)
+ 
+         m_net_ptr->increment_injected_packets(vnet);
+         m_net_ptr->update_traffic_distribution(route);
+-        int packet_id = m_net_ptr->getNextPacketID();
++        auto packet_id = m_net_ptr->getNextPacketID();
+         for (int i = 0; i < num_flits; i++) {
+             m_net_ptr->increment_injected_flits(vnet);
+             // flit *fl = new flit(packet_id,
+diff --git a/integrations/gem5/src/mem/ruby/network/garnet/flit.cc b/integrations/gem5/src/mem/ruby/network/garnet/flit.cc
+index 21e6dcd..a4f08d6 100644
+--- a/integrations/gem5/src/mem/ruby/network/garnet/flit.cc
++++ b/integrations/gem5/src/mem/ruby/network/garnet/flit.cc
+@@ -43,7 +43,7 @@ namespace garnet
+ {
+ 
+ // Constructor for the flit
+-flit::flit(int packet_id, int id, int  vc, int vnet, RouteInfo route, int size,
++flit::flit(uint64_t packet_id, int id, int  vc, int vnet, RouteInfo route, int size,
+     MsgPtr msg_ptr, int MsgSize, uint32_t bWidth, Tick curTime)
+ {
+     m_size = size;
+diff --git a/integrations/gem5/src/mem/ruby/network/garnet/flit.hh b/integrations/gem5/src/mem/ruby/network/garnet/flit.hh
+index a52d741..22b4284 100644
+--- a/integrations/gem5/src/mem/ruby/network/garnet/flit.hh
++++ b/integrations/gem5/src/mem/ruby/network/garnet/flit.hh
+@@ -51,7 +51,7 @@ class flit
+ {
+   public:
+     flit() {}
+-    flit(int packet_id, int id, int vc, int vnet, RouteInfo route, int size,
++    flit(uint64_t packet_id, int id, int vc, int vnet, RouteInfo route, int size,
+          MsgPtr msg_ptr, int MsgSize, uint32_t bWidth, Tick curTime);
+ 
+     virtual ~flit(){};
+@@ -60,7 +60,7 @@ class flit
+     int get_size() { return m_size; }
+     Tick get_enqueue_time() { return m_enqueue_time; }
+     Tick get_dequeue_time() { return m_dequeue_time; }
+-    int getPacketID() { return m_packet_id; }
++    uint64_t getPacketID() { return m_packet_id; }
+     int get_id() { return m_id; }
+     Tick get_time() { return m_time; }
+     int get_vnet() { return m_vnet; }
+@@ -116,7 +116,7 @@ class flit
+     uint32_t m_width;
+     int msgSize;
+   protected:
+-    int m_packet_id;
++    uint64_t m_packet_id;
+     int m_id;
+     int m_vnet;
+     int m_vc;

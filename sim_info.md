@@ -25,11 +25,57 @@ HYDRA has three connected execution paths:
 The paper reproduction procedures that connect these paths are under
 `artifact/experiments/`.
 
+## Multi-Fidelity Simulator Backends
+
+`main.py` selects a simulation backend through `simulator_backend` in
+`Sim/config/sys_config.py`. These network fidelity levels sit inside the
+serving simulation; they are distinct from the fast DSE estimators above.
+
+| Backend | Name | Execution |
+|---|---|---|
+| `hydra_sim` (default) | HYDRA-Analytic | Analytical network timing in the SimPy runtime |
+| `hydra_packet` | HYDRA-Packet | In-process C++ aggregate packet events and queue contention |
+| `chipsim_contended` | CHIPSIM/Garnet | Persistent Garnet flits, VCs, and credits |
+
+All three share HYDRA's compute profiles, hardware setup, workload, admission,
+and metric definitions. The refined backends currently validate static batching,
+static pipeline mapping, and uniform meshes. They support both Attention and
+SSM serving phases, including prefill and decode. Optional HBM DMA pacing is
+available in Packet and CHIPSIM.
+
+`BaseSimulationBackend` chooses the run path; `BaseExecutionBackend` supplies
+block and transfer completion events. Packet and CHIPSIM reuse a shared system
+export and conservative coordinator. A network advance stops at a completion
+or the next HYDRA event boundary so later traffic can contend with in-flight
+flows. Completion wakes the serving runtime and determines subsequent work.
+
+CHIPSIM runs in a subprocess with its own Python environment. Packet uses a
+versioned C ABI through `ctypes`. Configuration lives in `ChipsimConfig` and
+`PacketConfig`; no provider owns a separate workload or runtime policy.
+
+The CHIPSIM/Garnet path uses CHIPSIM's communication integration and Garnet
+network execution. Compute profiles, phase sequencing, and compute/network
+overlap remain in HYDRA; the comparison does not enable CHIPSIM's CMOS analytical
+or CIMLoop compute models.
+
+The earlier `chipsim` entry point remains a standalone transformer-prefill
+snapshot demo, producing `chipsim_inputs/` and `chipsim_launch.json`.
+`chipsim_runtime` remains an isolated-transfer diagnostic baseline. Use
+`chipsim_contended` for the high-fidelity serving comparison.
+
+See the [architecture and evidence](docs/multi_fidelity/README.md),
+[execution extension guide](integrations/README.md), and ordered
+[Packet](integrations/packet/README.md) / [CHIPSIM](integrations/chipsim/README.md)
+validation instructions.
+
 ## Repository Map
 
 - `main.py`: command-line entry point for one detailed simulation.
 - `Sim/config/`: model, architecture, workload, placement, mapping, and metrics
   configuration.
+- `Sim/backends/`: simulation backend factory and supported-policy checks.
+- `Sim/execution/`: execution factory, shared phases, and completion feedback.
+- `integrations/`: Packet and CHIPSIM providers, setup, and validation guides.
 - `Sim/entities/`: requests, model blocks, compute chiplets, memory chiplets,
   network resources, and static mapping.
 - `Sim/placer/`: Round-Robin, Random, communication-aware, and trace-based
@@ -46,6 +92,8 @@ The paper reproduction procedures that connect these paths are under
 - `Fast_Estimate/`: fast-DSE models and candidate filtering.
 - `artifact/`: curated inputs, reproduction scripts, result tables, and
   figures.
+- `third_party/CHIPSIM/`: high-fidelity co-simulator submodule and Garnet
+  integration.
 
 ## One Detailed Simulation
 

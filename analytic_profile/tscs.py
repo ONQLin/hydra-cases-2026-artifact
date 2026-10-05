@@ -3,6 +3,7 @@ import numpy as np
 from typing import Tuple, List, Dict, Any
 import math
 from Sim.metrics.monitor import analytics
+from Sim.entities.execution import ExecutionPhase
 import Sim.common as common
 
 from .Base_Accmodel import BaseAccModel
@@ -162,8 +163,9 @@ class TscsAccModel(BaseAccModel):
         hbm_latency = sec_to_cycles(hbm_time_s)
 
         total_latency = max(hbm_latency, compute_latency, sram_latency)
+        execution_phases = [ExecutionPhase(max(compute_latency, sram_latency), bytes_hbm)]
 
-        return analytics(total_latency, -1, -1, [], 80, 200)
+        return analytics(total_latency, -1, -1, [], 80, 200, execution_phases)
 
     @classmethod
     def get_dc_ssm_latency(cls, batch_size: int, ED: int, state_size: int,
@@ -220,7 +222,8 @@ class TscsAccModel(BaseAccModel):
         hbm_latency = sec_to_cycles(hbm_time_s)
         
         total_latency = max(hbm_latency, compute_latency, sram_latency)
-        return analytics(total_latency, -1, -1, [], 80, 200)
+        execution_phases = [ExecutionPhase(max(compute_latency, sram_latency), bytes_hbm)]
+        return analytics(total_latency, -1, -1, [], 80, 200, execution_phases)
     
     @classmethod
     def get_pf_mlp_latency(cls, bs: int, f_in: int, f_out: int, logic_name="tscs_d", ext_bw=128,
@@ -253,8 +256,9 @@ class TscsAccModel(BaseAccModel):
         hbm_latency = int(hbm_time_s * acc_freq)
 
         total_latency = max(hbm_latency, comp_latency, sram_latency)
+        execution_phases = [ExecutionPhase(max(comp_latency, sram_latency), bytes_hbm)]
 
-        return analytics(total_latency, -1, -1, [], 80, 200)
+        return analytics(total_latency, -1, -1, [], 80, 200, execution_phases)
 
     @classmethod
     def get_pf_conv1d_latency(cls, bs: int, c_in: int, c_out: int, f_in: int, f_out: int, kernel_size: int,
@@ -288,7 +292,8 @@ class TscsAccModel(BaseAccModel):
         hbm_latency = int(hbm_time_s * acc_freq)
 
         total_latency = max(hbm_latency, comp_latency, sram_latency)
-        return analytics(total_latency, -1, -1, [], 80, 200)
+        execution_phases = [ExecutionPhase(max(comp_latency, sram_latency), bytes_hbm)]
+        return analytics(total_latency, -1, -1, [], 80, 200, execution_phases)
 
     @classmethod
     def get_pf_attention_latency(cls, batch_size: int, L_seq: int, embedding_dim: int, q_heads: int, kv_heads: int,
@@ -335,6 +340,10 @@ class TscsAccModel(BaseAccModel):
         extra_hbm_latency = sec_to_cycles(extra_hbm_bytes / (ext_bw * 1e9))
 
         total_latency_qkv = max(hbm_latency_qkv, comp_latency_qkv, sram_latency_qkv) + extra_hbm_latency
+        execution_phases = [
+            ExecutionPhase(max(comp_latency_qkv, sram_latency_qkv), bytes_hbm_qkv),
+            ExecutionPhase(0, extra_hbm_bytes),
+        ]
 
         ops_qkt = 2.0 * B * q_heads * (L * L) * d_k
         comp_latency_qkt = ns_to_cycles(ops_qkt / MACs_per_ns)
@@ -353,6 +362,10 @@ class TscsAccModel(BaseAccModel):
             extra_hbm_bytes = (n_tiles - 1) * (B * L * D + B * L * D)
         extra_hbm_latency = sec_to_cycles(extra_hbm_bytes / (ext_bw * 1e9))
         total_latency_qkt = max(hbm_latency_qkt, comp_latency_qkt, sram_latency_qkt) + extra_hbm_latency
+        execution_phases.extend([
+            ExecutionPhase(max(hbm_latency_qkt, comp_latency_qkt, sram_latency_qkt)),
+            ExecutionPhase(0, extra_hbm_bytes),
+        ])
 
         size_qkt = B * q_heads * L * L
         GActs: float = specified_logic['config']['sfu'] * specified_logic['sfu']  # GActs/s
@@ -376,9 +389,13 @@ class TscsAccModel(BaseAccModel):
 
         extra_hbm_latency = sec_to_cycles(extra_hbm_bytes / (ext_bw * 1e9))
         total_latency_av = max(hbm_latency_av, comp_latency_av, sram_latency_av) + extra_hbm_latency
+        execution_phases.extend([
+            ExecutionPhase(max(hbm_latency_av, comp_latency_av, sram_latency_av)),
+            ExecutionPhase(0, extra_hbm_bytes),
+        ])
 
         total_latency = total_latency_qkv + total_latency_qkt + total_latency_av
-        return analytics(total_latency, -1, -1, [], 90, 250)
+        return analytics(total_latency, -1, -1, [], 90, 250, execution_phases)
 
     @classmethod
     def get_dc_attention_latency(cls, batch_size: int, L_seq: int, embedding_dim: int, q_heads: int, kv_heads: int,
@@ -413,6 +430,10 @@ class TscsAccModel(BaseAccModel):
         hbm_latency_q = sec_to_cycles(hbm_latency_q)
         extra_hbm_latency = sec_to_cycles(extra_hbm_bytes / (ext_bw * 1e9))
         total_q = max(hbm_latency_q, comp_latency_q, sram_latency_q) + extra_hbm_latency
+        execution_phases = [
+            ExecutionPhase(max(comp_latency_q, sram_latency_q), B*D + D*D),
+            ExecutionPhase(0, extra_hbm_bytes),
+        ]
 
         ops_qkt = B * q_heads * L * d_k
         comp_latency_qkt = ns_to_cycles(ops_qkt / MACs_per_ns)
@@ -430,6 +451,10 @@ class TscsAccModel(BaseAccModel):
         hbm_latency_qkt = sec_to_cycles(hbm_latency_qkt)
         extra_hbm_latency = sec_to_cycles(extra_hbm_bytes / (ext_bw * 1e9))
         total_qkt = max(comp_latency_qkt, sram_latency_qkt, hbm_latency_qkt) + extra_hbm_latency
+        execution_phases.extend([
+            ExecutionPhase(max(comp_latency_qkt, sram_latency_qkt), L*D),
+            ExecutionPhase(0, extra_hbm_bytes),
+        ])
 
         ops_av = B * q_heads * L * d_k
         comp_latency_av = ns_to_cycles(ops_av / MACs_per_ns)
@@ -452,9 +477,13 @@ class TscsAccModel(BaseAccModel):
         hbm_latency_av = sec_to_cycles(hbm_latency_av)
         extra_hbm_latency = sec_to_cycles(extra_hbm_bytes / (ext_bw * 1e9))
         total_av = max(comp_latency_av, sram_latency_av, hbm_latency_av) + extra_hbm_latency
+        execution_phases.extend([
+            ExecutionPhase(max(comp_latency_av, sram_latency_av), L*D),
+            ExecutionPhase(0, extra_hbm_bytes),
+        ])
 
         total_latency = total_q + total_qkt + total_av
-        return analytics(total_latency, -1, -1, [], 90, 250)
+        return analytics(total_latency, -1, -1, [], 90, 250, execution_phases)
 
     @classmethod
     def rms_norm_est(cls, in_size, logic_name="tscs_d", ext_bw=128, batch_size=1) -> int:
@@ -471,7 +500,8 @@ class TscsAccModel(BaseAccModel):
 
         Total_latency = max(Comp_latency, SRAM_latency, HBM_latency)
 
-        return analytics(Total_latency, -1, -1, [], 30, 100)
+        return analytics(Total_latency, -1, -1, [], 30, 100,
+                         [ExecutionPhase(max(Comp_latency, SRAM_latency), in_size)])
 
     @classmethod
     def silu_est(cls, in_size, logic_name="tscs_d", ext_bw=128, batch_size=1) -> int:

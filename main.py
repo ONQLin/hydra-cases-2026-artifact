@@ -1,21 +1,11 @@
-from Sim.simulator import Simulator
-
+from Sim.backends import run_simulation, BaseSimulationBackend
 from Sim.config.sys_config import HPSim_Config
-import Sim.config.utils as utils
-import logging
-import sys
 import tyro
 
 if __name__ == "__main__":
-
-    print("Starting the simulation...")
-    
     # Load configuration
-    config = tyro.cli(HPSim_Config)
-    
-    # Initialize simulator
-    simulator = Simulator(config)
-    simulator.run()
+    config: HPSim_Config = tyro.cli(HPSim_Config)
 
-    # Run the simulation
-    # simulator.run()
+    backend = BaseSimulationBackend.create_from_name(config.simulator_backend)
+    print(f"Using {backend.get_display_name()} ({config.simulator_backend})...")
+    run_simulation(config)

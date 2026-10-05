@@ -424,7 +424,146 @@ class MetricsConfig:
         os.makedirs(self.output_dir, exist_ok=True)
 
 @dataclass
+class PacketConfig:
+    """Aggregation and buffering for the C++ HYDRA-Packet network."""
+
+    quantum_bytes: int = field(
+        default=1024,
+        metadata={"help": "Maximum aggregated packet bytes; rounded down to whole network flits."},
+    )
+    buffer_bytes: int = field(
+        default=16384,
+        metadata={"help": "Aggregate queue capacity per directed port, including in-service packets."},
+    )
+
+
+@dataclass
+class ChipsimConfig:
+    """Microarchitecture and runtime configuration for the CHIPSIM backend."""
+
+    dma_pacing: bool = field(
+        default=False,
+        metadata={"help": "Pace contended-network DMA bursts using shared physical HBM source bandwidth."},
+    )
+    dma_burst_bytes: int = field(
+        default=4096,
+        metadata={"help": "Maximum DMA burst size in bytes when HBM pacing is enabled."},
+    )
+
+    reuse_mesh_paths: bool = field(
+        default=True,
+        metadata={"help": "Reuse equal-hop isolated transfers on a homogeneous full mesh in chipsim_runtime."},
+    )
+
+    submodule_dir: str = field(
+        default="third_party/CHIPSIM",
+        metadata={"help": "CHIPSIM submodule path, relative to the HYDRA root."},
+    )
+    python_executable: str = field(
+        default=".chipsim-venv/bin/python",
+        metadata={"help": "Python executable from the isolated CHIPSIM environment."},
+    )
+    requirements_file: str = field(
+        default="docs/requirements.txt",
+        metadata={"help": "Pinned requirements file, relative to the CHIPSIM root."},
+    )
+    translated_block_type: str = field(
+        default="transformer",
+        metadata={"help": "HYDRA block type translated for the CHIPSIM run."},
+    )
+    translated_num_blocks: int = field(
+        default=1,
+        metadata={"help": "Number of model blocks translated into CHIPSIM."},
+    )
+    compute_frequency_hz: float = field(
+        default=1e9,
+        metadata={"help": "Clock frequency used for translated compute chiplets."},
+    )
+    compute_efficiency: float = field(
+        default=0.8,
+        metadata={"help": "Sustained fraction of peak MAC throughput."},
+    )
+    compute_energy_per_mac_fj: float = field(
+        default=50.0,
+        metadata={"help": "Compute energy in femtojoules per MAC."},
+    )
+    compute_memory_capacity_mb: int = field(
+        default=64,
+        metadata={"help": "Local weight capacity of each compute chiplet."},
+    )
+    use_hydra_compute_backend: bool = field(
+        default=True,
+        metadata={
+            "help": "Use HYDRA task profiles instead of CHIPSIM CMOS/IMC compute models."
+        },
+    )
+    hbm_access_latency_ns: float = field(
+        default=50.0,
+        metadata={"help": "Fixed access latency of exported HBM chiplets."},
+    )
+    hbm_ports: int = field(
+        default=1,
+        metadata={"help": "Number of transfer ports on each exported HBM chiplet."},
+    )
+    fallback_macs_per_core_cycle: int = field(
+        default=256,
+        metadata={"help": "MACs per core per cycle when absent from the HYDRA library."},
+    )
+    activation_precision_bits: int = field(
+        default=8,
+        metadata={"help": "Activation precision used for CHIPSIM traffic."},
+    )
+    weight_precision_bits: int = field(
+        default=8,
+        metadata={"help": "Weight precision used for CHIPSIM traffic and capacity."},
+    )
+    network_frequency_hz: float = field(
+        default=1e9,
+        metadata={"help": "NoI clock frequency used by Garnet."},
+    )
+    router_latency_cycles: int = field(
+        default=1,
+        metadata={"help": "Garnet router latency in NoI clock cycles."},
+    )
+    link_latency_cycles: int = field(
+        default=1,
+        metadata={"help": "Garnet link latency in NoI clock cycles."},
+    )
+    virtual_channels_per_vnet: int = field(
+        default=1,
+        metadata={"help": "Number of Garnet virtual channels per virtual network."},
+    )
+    communication_method: str = field(
+        default="non-pipelined",
+        metadata={"help": "CHIPSIM communication method (pipelined/non-pipelined)."},
+    )
+    garnet_sim_cycles: int = field(
+        default=500_000_000,
+        metadata={"help": "Maximum Garnet cycles for each communication call."},
+    )
+    garnet_ticks_per_cycle: int = field(
+        default=1000,
+        metadata={"help": "gem5 ticks represented by one Garnet cycle."},
+    )
+    enable_dsent: bool = field(
+        default=False,
+        metadata={"help": "Whether to collect DSENT power and area estimates."},
+    )
+    enable_comm_cache: bool = field(
+        default=False,
+        metadata={"help": "Whether to reuse CHIPSIM communication results."},
+    )
+    timeout_seconds: int = field(
+        default=0,
+        metadata={"help": "CHIPSIM wall-clock timeout. Zero disables the timeout."},
+    )
+
+@dataclass
 class HPSim_Config(ABC):
+    simulator_backend: str = field(
+        default="hydra_sim",
+        metadata={"help": "HYDRA-Analytic (hydra_sim), HYDRA-Packet (hydra_packet), CHIPSIM (chipsim_contended); legacy chipsim/chipsim_runtime also available."},
+    )
     seed: int = field(
         default=42,
         metadata={"help": "Seed for the random number generator."},
@@ -433,7 +572,7 @@ class HPSim_Config(ABC):
         default="info",
         metadata={"help": "Logging level."},
     )
-    time_limit: int = field(
+    time_limit: float = field(
         default=100,  # in seconds, 0 is no limit
         metadata={"help": "Time limit for simulation in seconds. 0 means no limit."},
     )
@@ -473,7 +612,16 @@ class HPSim_Config(ABC):
         metadata={"help": "Metrics configuration."},
     )
 
+    packet_config: PacketConfig = field(default_factory=PacketConfig)
+    chipsim_config: ChipsimConfig = field(
+        default_factory=ChipsimConfig,
+        metadata={"help": "CHIPSIM backend configuration."},
+    )
+
     def __post_init__(self):
+        self.simulator_backend = self.simulator_backend.lower()
+        from Sim.backends import BaseSimulationBackend
+        BaseSimulationBackend.create_from_name(self.simulator_backend)
         self.write_config_to_file()
         
     def to_dict(self):

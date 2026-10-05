@@ -18,16 +18,17 @@ class SimulationManager:
     '''!
     Define the SimulationManager class to handle the simulation events.
     '''
-    def __init__(self, env:simpy.Environment, sim_done:simpy.Event, chip_graph:chip_graph, mem_sys:mem_sys, comp_sys:comp_sys, model_config: BaseModelConfig, scheduler: BaseReqScheduler):
+    def __init__(self, env:simpy.Environment, sim_done:simpy.Event, chip_graph:chip_graph, mem_sys:mem_sys, comp_sys:comp_sys, model_config: BaseModelConfig, scheduler: BaseReqScheduler, execution_backend=None, metrics_recorder=None):
 
         self.env: simpy.Environment = env                          # SimPy environment
         self.sim_done = sim_done                # Event to signal the end of simulation
+        self.metrics_recorder = metrics_recorder
         self.chip_graph = chip_graph            # The chip graph representing the NoI (network on interposer)
         self.mem_sys = mem_sys                  # Memory system instance
         self.comp_sys = comp_sys                # Compute system instance  
         self.scheduler:BaseReqScheduler = scheduler(chip_graph, mem_sys, comp_sys, bs=common.batch_size)  # Request scheduler instance
         self.scheduler.set_max_concurrent_requests(model_config, mem_sys)
-        self.PEs: list[processing] = [processing() for _ in range(common.num_wk_threads)]
+        self.PEs: list[processing] = [processing(execution_backend) for _ in range(common.num_wk_threads)]
         self.action = env.process(self.run())   # starts the run() method as a SimPy process
 
     def run(self):
@@ -72,6 +73,8 @@ class SimulationManager:
                     common.RequestQueue.running.append(executable_batch)
                     common.RequestQueue.executable.remove(executable_batch)
                 
+            if self.metrics_recorder is not None:
+                self.metrics_recorder.sample(self.env.now)
             if common.max_sim_length != -1 and self.env.now >= common.max_sim_length:
                 self.sim_done.succeed()
                 end_time = time.time()
@@ -81,5 +84,3 @@ class SimulationManager:
                 logger.info(f"Total simulation time: {end_time - stat_time} seconds.")
                 break
             yield self.env.timeout(common.simulation_clk)
-            
-            

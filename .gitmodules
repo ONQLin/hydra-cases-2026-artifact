@@ -1,0 +1,3 @@
+[submodule "third_party/CHIPSIM"]
+	path = third_party/CHIPSIM
+	url = https://github.com/ONQLin/CHIPSIM.git

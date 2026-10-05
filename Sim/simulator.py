@@ -1,4 +1,7 @@
 import simpy
+import json
+import random
+from pathlib import Path
 from pyvis.network import Network
 import numpy as np
 
@@ -10,6 +13,7 @@ from Sim.entities.chips_network import chip_graph
 from Sim.entities.mem_sys import mem_sys
 from Sim.entities.comp_sys import comp_sys
 from Sim.metrics.monitor import mem_monitor, comp_monitor, bandwidth_monitor, tokens_monitor, congestion_monitor, request_counter
+from Sim.metrics.serving_recorder import ServingMetricsRecorder
 from Sim.sim_core import SimulationManager
 from Sim.placer.BasePlacer import BasePlacer
 from Sim.entities.static_mapper import static_mapper
@@ -40,6 +44,8 @@ class Simulator:
         self.setup_config(config)
 
     def setup_config(self, config: HPSim_Config):
+        random.seed(config.seed)
+        np.random.seed(config.seed)
         # load some variables to common and utils from config
         #utils.NoI_bw = config.chips_config.D2D_NoI_bw
         common.logic_lib = config.chips_config.chips_lib.logics
@@ -52,7 +58,10 @@ class Simulator:
         common.batch_size = config.cluster_config.batch_size
 
     def run(self):
-        env = simpy.Environment(initial_time=0)
+        from Sim.execution import BaseExecutionBackend
+        backend_class = BaseExecutionBackend.create_from_name(self._config.simulator_backend)
+        self.execution_backend = backend_class(self._config)
+        env = self.execution_backend.create_environment()
         sim_done = env.event()
         tokens_monitor.reset()
         congestion_monitor.reset()
@@ -63,11 +72,13 @@ class Simulator:
         common.RequestQueue.running.clear()
         common.RequestQueue.completed.clear()
         common.preempted_requests.clear()
+        common.req_allocated_mems.clear()
+        common.inj_finish = False
 
         logger.info("Feed Request ...")
-        self._request_generator = TraceRequestGenerator(sim_done=sim_done, tr_config=self._config.workload_config.request_generator_config, 
+        self._request_generator = TraceRequestGenerator(sim_done=sim_done, tr_config=self._config.workload_config.request_generator_config,
                                                         mod_config=self._config.workload_config.model_config, env=env)
-        
+
         common.output_folder = self._config.metrics_config.output_dir
         file = common.output_folder + "/log_info.txt"
         open(file, "w").close()  # Clear the log file
@@ -112,13 +123,31 @@ class Simulator:
         # common.configure_chip_features(common.analytic_models_config, Col_PE=24, Row_PE=24, Num_Array=8, C_sram=16, DMAs=8, Sram_bw=32)
         self.mapper = static_mapper()
         common.job_mapping, _ = self.mapper.generate_mapping(self._config.workload_config.model_config, self.comp_sys, self.mem_sys)
+        self._request_generator.export_workload(common.output_folder)
+        setup = {
+            "weight_mapping": self.mem_sys.blocks_alloc,
+            "task_mapping": common.job_mapping,
+            "chiplets": [{"id": int(data['id']), "type": int(data['chiplet_type'])}
+                         for _, data in self.resources_graph.graph.nodes(data=True)],
+            "links": sorted([sorted([int(self.resources_graph.graph.nodes[u]['id']),
+                                     int(self.resources_graph.graph.nodes[v]['id'])])
+                             for u, v in self.resources_graph.graph.edges]),
+        }
+        (Path(common.output_folder) / "system_snapshot.json").write_text(json.dumps(setup, indent=2))
         logger.info("Init Simulation Manager ...")
+        self.metrics_recorder = ServingMetricsRecorder(common.output_folder)
         self._sim_manager = SimulationManager(env, sim_done, self.resources_graph, self.mem_sys, self.comp_sys, 
-                                              self._config.workload_config.model_config, self._config.cluster_config.local_scheduler_inst)
+                                              self._config.workload_config.model_config, self._config.cluster_config.local_scheduler_inst,
+                                              self.execution_backend, self.metrics_recorder)
         
 
-        env.run(until=sim_done)
-        
+        try:
+            self.execution_backend.initialize(self.resources_graph, self.mem_sys,
+                                              self.comp_sys, common.job_mapping)
+            env.run(until=sim_done)
+        finally:
+            self.execution_backend.close()
+
         total_tokens = tokens_monitor.output_tokens
         total_finish_tokens = tokens_monitor.finished_tokens
         elapsed_seconds = max(env.now / common.time_granularity, 1e-9)
@@ -175,3 +204,24 @@ class Simulator:
 
         print("Outputs are saved in ", common.output_folder)
         print("Simulation finished.")
+        metrics = {
+            "backend": self._config.simulator_backend,
+            "elapsed_simulation_s": elapsed_seconds,
+            "output_tokens": total_tokens,
+            "tokens_per_sec": token_p_second,
+            "finished_tokens_per_sec": ftoken_p_second,
+            "ttft_s": float(np.mean(tokens_monitor.time_to_first_token)) / common.time_granularity
+                      if tokens_monitor.time_to_first_token else None,
+            "ttft_samples": len(tokens_monitor.time_to_first_token),
+            "completed_requests": request_counter.completed_requests,
+            "running_requests": request_counter.running_requests,
+            "pending_requests": request_counter.pending_requests,
+            "preempted_requests": total_preempted_requests,
+            "area_mm2": utils.total_area,
+            "measurement_window": "from t=0 through fixed simulation cutoff; no warmup exclusion",
+        }
+        metrics_path = Path(common.output_folder) / "metrics.json"
+        temporary = metrics_path.with_suffix('.tmp')
+        temporary.write_text(json.dumps(metrics, indent=2))
+        temporary.replace(metrics_path)
+        return metrics_path

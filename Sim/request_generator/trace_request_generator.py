@@ -2,6 +2,7 @@ from typing import List
 
 import simpy.exceptions
 from Sim.request_generator.base_request_generator import BaseRequestGenerator
+from pathlib import Path
 from Sim.request_generator.trace_request_length_generator import TraceRequestLengthGenerator
 from Sim.request_generator.static_request_generator import StaticRequestIntervalGenerator
 from Sim.config.sys_config import TraceRequestGeneratorConfig
@@ -16,6 +17,9 @@ logger = init_logger(__name__)  # child logger inherits handlers
 
 # We now use simpy for request generation.
 class TraceRequestGenerator():
+    def export_workload(self, output_dir):
+        self.request_length_generator.trace_df.to_csv(
+            Path(output_dir) / 'effective_workload.csv', index=False)
 
     def __init__(self, sim_done: simpy.Event, tr_config: TraceRequestGeneratorConfig, mod_config:BaseModelConfig ,env: simpy.Environment):
         #super().__init__(config)

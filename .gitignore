@@ -2,6 +2,8 @@
 .env
 .env.*
 .venv/
+.chipsim-venv/
+.hydra-packet-build/
 venv/
 env/
 myenv/
@@ -26,6 +28,8 @@ temp_outputs/
 revisions_simulator_output/
 output_sanity_checks/
 output_temp_runs/
+# Validation reports are generated; curated figure data belongs in docs/.
+/tests/validation/**/results/
 *.log
 *.out
 *.err

@@ -1,0 +1,7 @@
+{
+  "simulated_seconds": 5.0,
+  "paired_points": 6,
+  "expected_points": 6,
+  "missing_points": [],
+  "scope": "Transient window from t=0; TTFT is censored at cutoff. Network timing is refined; compute and runtime are shared."
+}

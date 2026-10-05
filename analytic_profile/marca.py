@@ -3,6 +3,7 @@ import numpy as np
 from typing import Tuple, List, Dict, Any
 import math
 from Sim.metrics.monitor import analytics
+from Sim.entities.execution import ExecutionPhase
 import Sim.common as common
 
 from .Base_Accmodel import BaseAccModel
@@ -153,8 +154,9 @@ class MarcaAccModel(BaseAccModel):
         hbm_latency = sec_to_cycles(hbm_time_s)
 
         total_latency = max(hbm_latency, compute_latency, sram_latency)
+        execution_phases = [ExecutionPhase(max(compute_latency, sram_latency), bytes_hbm)]
 
-        return analytics(total_latency, -1, -1, [], 80, 200)
+        return analytics(total_latency, -1, -1, [], 80, 200, execution_phases)
 
     @classmethod
     def get_dc_ssm_latency(cls, batch_size: int, ED: int, state_size: int,
@@ -211,7 +213,8 @@ class MarcaAccModel(BaseAccModel):
         hbm_latency = sec_to_cycles(hbm_time_s)
 
         total_latency = max(hbm_latency, compute_latency, sram_latency)
-        return analytics(total_latency, -1, -1, [], 80, 200)
+        execution_phases = [ExecutionPhase(max(compute_latency, sram_latency), bytes_hbm)]
+        return analytics(total_latency, -1, -1, [], 80, 200, execution_phases)
 
     @classmethod
     def get_pf_mlp_latency(cls, bs: int, f_in: int, f_out: int, logic_name="marca_d", ext_bw=128,
@@ -245,8 +248,9 @@ class MarcaAccModel(BaseAccModel):
         hbm_latency = int(hbm_time_s * acc_freq)
 
         total_latency = max(hbm_latency, comp_latency, sram_latency)
+        execution_phases = [ExecutionPhase(max(comp_latency, sram_latency), bytes_hbm)]
 
-        return analytics(total_latency, -1, -1, [], 80, 200)
+        return analytics(total_latency, -1, -1, [], 80, 200, execution_phases)
 
     @classmethod
     def get_pf_conv1d_latency(cls, bs: int, c_in: int, c_out: int, f_in: int, f_out: int, kernel_size: int,
@@ -280,7 +284,8 @@ class MarcaAccModel(BaseAccModel):
         hbm_latency = int(hbm_time_s * acc_freq)
 
         total_latency = max(hbm_latency, comp_latency, sram_latency)
-        return analytics(total_latency, -1, -1, [], 80, 200)
+        execution_phases = [ExecutionPhase(max(comp_latency, sram_latency), bytes_hbm)]
+        return analytics(total_latency, -1, -1, [], 80, 200, execution_phases)
 
     @classmethod
     def get_pf_attention_latency(cls, batch_size: int, L_seq: int, embedding_dim: int, q_heads: int, kv_heads: int,
@@ -463,7 +468,8 @@ class MarcaAccModel(BaseAccModel):
 
         Total_latency = max(Comp_latency, SRAM_latency, HBM_latency)
 
-        return analytics(Total_latency, -1, -1, [], 30, 100)
+        return analytics(Total_latency, -1, -1, [], 30, 100,
+                         [ExecutionPhase(max(Comp_latency, SRAM_latency), in_size)])
 
     @classmethod
     def silu_est(cls, in_size, logic_name="marca_d", ext_bw=128, batch_size=1) -> int:
@@ -478,7 +484,8 @@ class MarcaAccModel(BaseAccModel):
         HBM_latency = int(in_size / (ext_bw))
         Total_latency = max(Comp_latency, SRAM_latency, HBM_latency)
         
-        return analytics(Total_latency, -1, -1, [], 30, 100)
+        return analytics(Total_latency, -1, -1, [], 30, 100,
+                         [ExecutionPhase(max(Comp_latency, SRAM_latency), in_size)])
 
     @classmethod
     def softplus_est(cls, in_size, logic_name="marca_d", ext_bw=128, batch_size=1) -> int:

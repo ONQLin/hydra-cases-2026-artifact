@@ -1,0 +1,61 @@
+{
+  "reference": "chipsim_contended",
+  "simulated_seconds": 5.0,
+  "paired_points": 6,
+  "input_csv": "docs/multi_fidelity/data/comparison.csv",
+  "input_csv_sha256": "55372a59096ec8ce5a1677aae7d40d6f278f53c48b0c10da2ebdbaea665cfb36",
+  "mape_definition": "100 * mean(abs(backend / CHIPSIM - 1)); equal weight per case",
+  "rmspe_definition": "100 * sqrt(mean((backend / CHIPSIM - 1)^2))",
+  "speedup_definition": "sum(CHIPSIM process wall seconds) / sum(backend process wall seconds)",
+  "scope": "Shared compute; transient from t=0; legacy TTFT excludes queue delay; summed wall time is not parallel makespan.",
+  "results": [
+    {
+      "backend": "chipsim_contended",
+      "label": "CHIPSIM (reference)",
+      "paired_points": 6,
+      "process_wall_sum_s": 248392.07233493263,
+      "speedup_vs_chipsim": 1.0,
+      "time_cost_percent_of_chipsim": 99.99999999999999,
+      "tokens_per_sec_mape_percent": 0.0,
+      "tokens_per_sec_mean_signed_shift_percent": 0.0,
+      "tokens_per_sec_rmspe_percent": 0.0,
+      "tokens_per_sec_max_ape_percent": 0.0,
+      "ttft_s_mape_percent": 0.0,
+      "ttft_s_mean_signed_shift_percent": 0.0,
+      "ttft_s_rmspe_percent": 0.0,
+      "ttft_s_max_ape_percent": 0.0
+    },
+    {
+      "backend": "hydra_packet",
+      "label": "HYDRA-Packet",
+      "paired_points": 6,
+      "process_wall_sum_s": 14789.023828839185,
+      "speedup_vs_chipsim": 16.795704382500094,
+      "time_cost_percent_of_chipsim": 5.953903314956695,
+      "tokens_per_sec_mape_percent": 7.2181909442877235,
+      "tokens_per_sec_mean_signed_shift_percent": 7.2181909442877235,
+      "tokens_per_sec_rmspe_percent": 8.81502904377735,
+      "tokens_per_sec_max_ape_percent": 12.408759124087588,
+      "ttft_s_mape_percent": 0.6660036065719336,
+      "ttft_s_mean_signed_shift_percent": -0.6660036065719336,
+      "ttft_s_rmspe_percent": 1.3091850825579388,
+      "ttft_s_max_ape_percent": 3.1728479231490914
+    },
+    {
+      "backend": "hydra_sim",
+      "label": "HYDRA-Analytic",
+      "paired_points": 6,
+      "process_wall_sum_s": 66.458170149941,
+      "speedup_vs_chipsim": 3737.570140353212,
+      "time_cost_percent_of_chipsim": 0.026755350734514828,
+      "tokens_per_sec_mape_percent": 12.713399826323842,
+      "tokens_per_sec_mean_signed_shift_percent": 12.713399826323842,
+      "tokens_per_sec_rmspe_percent": 16.836676070546673,
+      "tokens_per_sec_max_ape_percent": 32.1654501216545,
+      "ttft_s_mape_percent": 0.5190739758993571,
+      "ttft_s_mean_signed_shift_percent": -0.5190739758993571,
+      "ttft_s_rmspe_percent": 0.7231397969199499,
+      "ttft_s_max_ape_percent": 1.624265041342221
+    }
+  ]
+}

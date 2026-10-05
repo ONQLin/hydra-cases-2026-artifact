@@ -12,6 +12,7 @@ from typing import Any, Dict, Optional, List
 from Sim.entities.mem_chiplet import mem_chiplet
 from Sim.entities.comp_chiplet import comp_chiplet
 from Sim.config.utils import chiplet_types_list, IO_bw
+from Sim.entities.execution import ExecutionPhase
 import Sim.config.utils as utils
 
 
@@ -49,6 +50,8 @@ class analytics:
         default=0,
         metadata={"help": "Total power consumption in mW for the cluster."},
     )
+
+    execution_phases: List[ExecutionPhase] = field(default_factory=list)
 
 @dataclass    
 class request_counter:
@@ -109,6 +112,7 @@ class request_counter:
         cls.completed_requests = 0
         cls.pending_requests = 0
         cls.running_requests = 0
+        cls.running_batches = 0
 
 @dataclass    
 class tokens_monitor:

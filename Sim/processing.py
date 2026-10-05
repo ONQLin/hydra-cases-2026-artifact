@@ -29,7 +29,9 @@ logger = init_logger(__name__)  # child logger inherits handlers
 
 # the worker thread in the simulator
 class processing:
-    def __init__(self):
+    def __init__(self, execution_backend=None):
+        from Sim.execution.native import NativeExecutionBackend
+        self.execution_backend = execution_backend or NativeExecutionBackend()
         self.name = "Processing on a block of the request"
         self.batch_id = -1 # it process on a certain request
         self.IDLE = True
@@ -474,7 +476,12 @@ class processing:
 
                 comm_latency = len(route)* chip_graph.graph.edges[src_id, dst_id]['latency(ns)'] / 10E9
                 transf_latency = ((item.size / (alloc_io_bw*1024)) + comm_latency + 50*10E-9) * common.time_granularity  # Convert to base time unit #TODO
-                yield env.timeout(int(transf_latency))  # Simulate communication latency
+                transfer_done = self.execution_backend.start_transfer(
+                    env,
+                    int_mem_chiplet.chiplet_id, target_weight_chiplet.chiplet_id,
+                    item.size, alloc_io_bw, transf_latency,
+                )
+                yield transfer_done
                 # Release the path and bandwidth after transmission
                 chip_graph.release_path(route, alloc_io_bw, env.now)
                 chip_graph.offload_bw_byid(target_weight_chiplet.chiplet_id, alloc_io_bw, env.now)
@@ -591,48 +598,14 @@ class processing:
             """
             Step 6, comp latency, run the comp chiplet
             """
-            total_latency = 0.0
-            avg_util = []
-            # blocks to process are same in the batch
-            for layer_config, layer_name in zip(self.blocks_to_process[0].layers_configs,self.blocks_to_process[0].layers):
-                assert len(layer_config) == len(layer_name), "Layer configuration and layer names must match in length."
-                assert isinstance(self.blocks_to_process[0], block), "Invalid block configuration."
-                # computation latency
-                for idx, item in enumerate(layer_config):
-                    name = layer_name[idx]    # identify the layer name
-                    if name in ['MHA','SSM']: # prefill and decode mode
-                        if self.infs_to_process[0].type == 'prefill':
-                            name += '_p'
-                        else:
-                            name += '_d'
-                    
-                    assert isinstance(item, baselayerConfig), "Invalid layer configuration."
-                    logic_name = utils.chiplet_types_list[selected_C_chiplet.chiplet_type]
-                    analytic_profiles:BaseAccModel = BaseAccModel.create_from_name(logic_name)
-                    func_args = analytic_profiles.config_params(**vars(item))
-                    batch_size = len(self.requests)
-                    # adjust the args for prefill/decode
-                    if self.infs_to_process[0].type == 'prefill':
-                        func_args['bs'] = self.blocks_to_process[0].context_length # for kernels aside from mha and ssm
-                        func_args['batch_size'] = batch_size
-                        func_args['L_seq'] = self.blocks_to_process[0].context_length
-                        if 'in_size' in func_args:
-                            func_args['in_size'] *= self.blocks_to_process[0].context_length
-                        # if 'f_in' in func_args:
-                        #     func_args['f_in'] *= block_to_process.context_length
-                    else:
-                        func_args['bs'] = 1
-                        func_args['batch_size'] = batch_size
-                        func_args['L_seq'] = self.blocks_to_process[0].context_length
-                    func_args['logic_name'] = logic_name
-                    func_args['ext_bw'] = select_bw
-                    analytic_res:analytics = analytic_profiles.get_kernel(name, **func_args)
-                    total_latency += common.convert_analy_time(analytic_res.total_latency)
-                    avg_util.append(analytic_res.utilization)
-            # comp latency for one block, set utilization of the
-            avg_util = np.mean(avg_util)
+            block_done, avg_util = self.execution_backend.start_block(
+                env,
+                self.blocks_to_process[0], self.infs_to_process[0].type,
+                len(self.requests), selected_C_chiplet,
+                target_weight_chiplet.chiplet_id, select_bw,
+            )
             comp_sys.set_used_byid(chiplet_id=selected_C_chiplet.chiplet_id, util=avg_util, power=30.0, time=env.now)
-            yield env.timeout(int(total_latency))
+            yield block_done
             comp_sys.set_free_byid(chiplet_id=selected_C_chiplet.chiplet_id, time=env.now)  # set the chiplet to idle after processing
             
             for item in self.input_cache:
@@ -1035,7 +1008,7 @@ class processing:
             assert isinstance(mem_chiplet_inst, mem_chiplet), "Chiplet is not of type mem_chiplet."
             if req_id not in mem_chiplet_inst.content_params.keys():
                 continue
-            for data in mem_chiplet_inst.content_params[req_id]:
+            for data in list(mem_chiplet_inst.content_params[req_id]):
                 if not isinstance(data, intermediate):
                     raise ValueError(f"Data is not of type intermediate: {data}")
                 if data.req_id != req_id:
